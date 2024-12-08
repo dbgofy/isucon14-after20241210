@@ -169,3 +169,27 @@ grafana-server: /usr/local/bin/grafana-server
 	curl -sL https://dl.grafana.com/oss/release/grafana-7.1.5.linux-amd64.tar.gz | tar xzv --strip-components 1 -C $@
 	cp -f /files/grafana/datasources.yml $@/conf/provisioning/datasources/datasources.yml
 	cp -f /files/grafana/dashboards.yml $@/conf/provisioning/dashboards/dashboards.yml
+
+.PHONY: deploy
+build: stop /home/isucon/webapp/go/isuride start
+
+.PHONY: stop
+stop:
+	ssh root@192.168.0.11 systemctl stop isuride-go.service
+	ssh root@192.168.0.12 systemctl stop isuride-go.service
+	ssh root@192.168.0.13 systemctl stop isuride-go.service
+
+.PHONY: start
+start:
+	ssh root@192.168.0.11 systemctl start isuride-go.service
+	ssh root@192.168.0.12 systemctl start isuride-go.service
+	ssh root@192.168.0.13 systemctl start isuride-go.service
+
+.PHONY: /home/isucon/webapp/go/isuride
+/home/isucon/webapp/go/isuride: /home/isucon/webapp/go
+	# chown -R isucon:isucon /home/isucon/webapp/img
+	cd $<; /usr/local/bin/go build -o $@ .
+	scp $@ root@192.168.0.11:$@
+	scp $@ root@192.168.0.12:$@
+	scp $@ root@192.168.0.13:$@
+
