@@ -149,9 +149,6 @@ func setup() http.Handler {
 		mux.HandleFunc("GET /api/internal/matching", internalGetMatching)
 	}
 
-	// pprof
-	mux.Mount("/debug", middleware.Profiler())
-
 	return mux
 }
 
