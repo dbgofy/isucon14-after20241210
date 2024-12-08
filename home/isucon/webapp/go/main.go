@@ -144,7 +144,7 @@ func setup() http.Handler {
 		// chair_locations の情報を起動時にメモリに持っておく
 		ChairLocationMap = sync.Map{}
 		data := []ChairLocation{}
-		if err := db.Select(&data, "SELECT * FROM chair_locations"); err != nil {
+		if err := db.Select(&data, "SELECT * FROM chair_locations ORDER BY id"); err != nil {
 			panic(err)
 		}
 		for _, cl := range data {
