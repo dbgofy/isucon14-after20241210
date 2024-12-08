@@ -113,10 +113,12 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	prevLocation := &ChairLocation{} // 一個前の座標
-	if err := tx.GetContext(ctx, prevLocation, `SELECT * FROM chair_locations WHERE chair_id = ? ORDER BY created_at DESC`, chair.ID); err != nil {
+	if err := tx.GetContext(ctx, prevLocation, `SELECT * FROM chair_locations WHERE chair_id = ? ORDER BY created_at DESC LIMIT 1`, chair.ID); err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusInternalServerError, err)
 			return
+		} else {
+			prevLocation = nil
 		}
 	}
 
@@ -142,9 +144,8 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	if prevLocation != nil {
 		_, err = tx.ExecContext(
 			ctx,
-			"INSERT INTO chair_locations_minus_distance (id, chair_id, distance) VALUES (?, ?, ?), (?, ?, ?)",
-			ulid.Make().String(), chair.ID, abs(prevLocation.Longitude-location.Longitude),
-			ulid.Make().String(), chair.ID, abs(prevLocation.Latitude-location.Latitude),
+			"INSERT INTO chair_locations_minus_distance (id, chair_id, distance) VALUES (?, ?, ?)",
+			ulid.Make().String(), chair.ID, abs(prevLocation.Longitude-location.Longitude)+abs(prevLocation.Latitude-location.Latitude),
 		)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
