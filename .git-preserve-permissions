@@ -11635,6 +11635,7 @@
 0644:0:0:home/isucon/webapp/sql/2-master-data.sql
 0644:0:0:home/isucon/webapp/sql/3-initial-data.sql.gz
 0755:0:0:home/isucon/webapp/sql/init.sh
+0644:0:0:kataribe.toml
 0700:0:0:root/.ssh
 0700:0:0:root
 0644:0:0:root/.ssh/authorized_keys
