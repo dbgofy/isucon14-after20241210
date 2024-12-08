@@ -28,7 +28,7 @@ var db *sqlx.DB
 var (
 	ChairMap = sync.Map{}
 
-	// key: ID and ChairID
+	// key: ID and last ChairID
 	ChairLocationMap = sync.Map{}
 )
 
@@ -63,6 +63,19 @@ func GetChairLocation(key string) *ChairLocation {
 		return v.(*ChairLocation)
 	}
 	return nil
+}
+
+// GetChairLocations
+// ChairID をキーにして ChairLocation list を取得する
+func GetChairLocations(key string) (cls []*ChairLocation) {
+	ChairLocationMap.Range(func(k, v any) bool {
+		cl := v.(*ChairLocation)
+		if cl.ChairID == key {
+			cls = append(cls, cl)
+		}
+		return true
+	})
+	return
 }
 
 func main() {
