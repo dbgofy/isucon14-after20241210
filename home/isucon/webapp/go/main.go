@@ -65,9 +65,9 @@ func GetChairLocation(key string) *ChairLocation {
 	return nil
 }
 
-// GetChairLocations
+// ListChairLocations
 // ChairID をキーにして ChairLocation list を取得する
-func GetChairLocations(key string) (cls []*ChairLocation) {
+func ListChairLocations(key string) (cls []*ChairLocation) {
 	ChairLocationMap.Range(func(k, v any) bool {
 		cl := v.(*ChairLocation)
 		if cl.ChairID == key {

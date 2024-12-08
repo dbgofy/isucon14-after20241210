@@ -3,8 +3,6 @@ package main
 import (
 	"database/sql"
 	"errors"
-	"github.com/jmoiron/sqlx"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -217,68 +215,43 @@ WHERE owner_id = ?
 		chairIDs = append(chairIDs, chair.ID)
 	}
 
-	query, params, err := sqlx.In("SELECT chair_id, MAX(id) AS max_id, MIN(id) AS min_id FROM chair_locations WHERE chair_id IN (?) GROUP BY chair_id", chairIDs)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	var chairLocationMaxMin []struct {
-		ChairID string `db:"chair_id"`
-		MaxID   string `db:"max_id"`
-		MinID   string `db:"min_id"`
-	}
-	if err := db.Select(&chairLocationMaxMin, query, params...); err != nil {
-		log.Fatal(err)
-	}
-
-	chairLocationIDs := make([]string, 0, len(chairLocationMaxMin)*2)
-	for _, cm := range chairLocationMaxMin {
-		chairLocationIDs = append(chairLocationIDs, cm.MaxID, cm.MinID)
-	}
-	chairLocations := []ChairLocation{}
-	query, params, err = sqlx.In("SELECT * FROM chair_locations WHERE id IN (?)", chairLocationIDs)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	if err := db.Select(&chairLocations, query, params...); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	chairLocationByChairID := map[string][]ChairLocation{}
-	for _, cl := range chairLocations {
-		chairLocationByChairID[cl.ChairID] = append(chairLocationByChairID[cl.ChairID], cl) // 最大二地点まで入ってるはず
-	}
-
 	type chairTotalDistance struct {
 		ChairID  string `db:"chair_id"`
 		Distance int    `db:"total_distance"`
 	}
-	query, params, err = sqlx.In("SELECT chair_id, SUM(distance) AS total_distance FROM chair_locations_minus_distance WHERE chair_id IN (?) GROUP BY chair_id", chairIDs)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	totalDistances := []chairTotalDistance{}
-	if err := db.Select(&totalDistances, query, params...); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	totalDistanceByChairID := map[string]int{}
-	for _, td := range totalDistances {
-		totalDistanceByChairID[td.ChairID] = td.Distance
+
+	totalDistanceByChairID := make(map[string]int)
+	for _, c := range chairs {
+		locations := ListChairLocations(c.ID)
+		var (
+			prev     *ChairLocation
+			distance int
+		)
+		for _, l := range locations {
+			if prev == nil {
+				prev = l
+				continue
+			}
+
+			lat := l.Latitude - prev.Latitude
+			if lat < 0 {
+				lat = -lat
+			}
+
+			lon := l.Longitude - prev.Longitude
+			if lon < 0 {
+				lon = -lon
+			}
+
+			distance += lat + lon
+		}
+		totalDistanceByChairID[c.ID] = distance
 	}
 
 	res := ownerGetChairResponse{}
 	for _, chair := range chairs {
 		totalDistance := totalDistanceByChairID[chair.ID]
-		chairLocation := chairLocationByChairID[chair.ID]
-		var totalDistanceUpdatedAt *time.Time
-		for _, cl := range chairLocation {
-			if totalDistanceUpdatedAt == nil || cl.CreatedAt.After(*totalDistanceUpdatedAt) {
-				totalDistanceUpdatedAt = &cl.CreatedAt
-			}
-		}
+		chairLocation := GetChairLocation(chair.ID)
 		c := ownerGetChairResponseChair{
 			ID:            chair.ID,
 			Name:          chair.Name,
@@ -287,8 +260,8 @@ WHERE owner_id = ?
 			RegisteredAt:  chair.CreatedAt.UnixMilli(),
 			TotalDistance: totalDistance,
 		}
-		if totalDistanceUpdatedAt != nil {
-			t := totalDistanceUpdatedAt.UnixMilli()
+		if totalDistance > 0 {
+			t := chairLocation.CreatedAt.UnixMilli()
 			c.TotalDistanceUpdatedAt = &t
 		}
 		res.Chairs = append(res.Chairs, c)
