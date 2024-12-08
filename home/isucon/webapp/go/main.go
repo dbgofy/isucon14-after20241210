@@ -37,6 +37,11 @@ func UpdateChair(chair *Chair, updatedAt *time.Time) {
 	ChairMap.Store(chair.AccessToken, chair)
 }
 
+func InsertChair(cl *ChairLocation) {
+	ChairLocationMap.Store(cl.ID, cl)
+	ChairLocationMap.Store(cl.ChairID, cl)
+}
+
 // GetChair
 // AccessTokenかIDをキーにしてChairを取得する
 func GetChair(key string) *Chair {
