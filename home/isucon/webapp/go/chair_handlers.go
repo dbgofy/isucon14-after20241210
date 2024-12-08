@@ -145,16 +145,17 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: now,
 	}
 	InsertChairLocation(&cl)
-	/*
-		if _, err := tx.ExecContext(
+	go func() {
+		time.Sleep(90 * time.Second)
+		db.ExecContext(
 			ctx,
 			`INSERT INTO chair_locations (id, chair_id, latitude, longitude, created_at) VALUES (?, ?, ?, ?, ?)`,
 			chairLocationID, chair.ID, req.Latitude, req.Longitude, now,
-		); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-	*/
+		)
+	}()
+	/*
+
+	 */
 
 	location := &ChairLocation{
 		ID:        chairLocationID,
