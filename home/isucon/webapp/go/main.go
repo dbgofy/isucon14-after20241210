@@ -25,7 +25,12 @@ const RetryAfterMs = 1500
 
 var db *sqlx.DB
 
-var ChairMap = sync.Map{}
+var (
+	ChairMap = sync.Map{}
+
+	// key: ID and ChairID
+	ChairLocationMap = sync.Map{}
+)
 
 func UpdateChair(chair *Chair, updatedAt *time.Time) {
 	if updatedAt != nil {
@@ -37,11 +42,25 @@ func UpdateChair(chair *Chair, updatedAt *time.Time) {
 	ChairMap.Store(chair.AccessToken, chair)
 }
 
+func InsertChairLocation(cl *ChairLocation) {
+	ChairLocationMap.Store(cl.ID, cl)
+	ChairLocationMap.Store(cl.ChairID, cl)
+}
+
 // GetChair
 // AccessTokenかIDをキーにしてChairを取得する
 func GetChair(key string) *Chair {
 	if v, ok := ChairMap.Load(key); ok {
 		return v.(*Chair)
+	}
+	return nil
+}
+
+// GetChairLocation
+// ID か ChairID をキーにして ChairLocation を取得する
+func GetChairLocation(key string) *ChairLocation {
+	if v, ok := ChairLocationMap.Load(key); ok {
+		return v.(*ChairLocation)
 	}
 	return nil
 }
@@ -101,6 +120,18 @@ func setup() http.Handler {
 		}
 		for _, chair := range chairs {
 			UpdateChair(&chair, &chair.UpdatedAt)
+		}
+	}
+
+	{
+		// chair_locations の情報を起動時にメモリに持っておく
+		ChairLocationMap = sync.Map{}
+		data := []ChairLocation{}
+		if err := db.Select(&data, "SELECT * FROM chair_locations"); err != nil {
+			panic(err)
+		}
+		for _, cl := range data {
+			InsertChairLocation(&cl)
 		}
 	}
 
@@ -185,6 +216,7 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	prevChairLocations := make(map[string]ChairLocation)
 	distanceByChairID := make(map[string]int)
 	for _, cl := range chairLocations {
+		InsertChairLocation(&cl)
 		prevChairLocation, ok := prevChairLocations[cl.ChairID]
 		prevChairLocations[cl.ChairID] = cl
 		if !ok {
