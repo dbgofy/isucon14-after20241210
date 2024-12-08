@@ -240,9 +240,8 @@ func appGetRides(w http.ResponseWriter, r *http.Request) {
 		item.Chair = getAppRidesResponseItemChair{}
 
 		chair := &Chair{}
-		if err := tx.GetContext(ctx, chair, `SELECT * FROM chairs WHERE id = ?`, ride.ChairID); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
+		if ride.ChairID.Valid {
+			chair = GetChair(ride.ChairID.String)
 		}
 		item.Chair.ID = chair.ID
 		item.Chair.Name = chair.Name
@@ -724,11 +723,7 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if ride.ChairID.Valid {
-		chair := &Chair{}
-		if err := tx.GetContext(ctx, chair, `SELECT * FROM chairs WHERE id = ?`, ride.ChairID); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
+		chair := GetChair(ride.ChairID.String)
 
 		stats, err := getChairStats(ctx, tx, chair.ID)
 		if err != nil {
@@ -886,7 +881,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 			WHERE c.is_active
 			GROUP BY c.id, c.owner_id, c.name, c.model, c.is_active, c.access_token, c.created_at, c.updated_at
 			HAVING COUNT(r.id) - COUNT(rs.id) = 0
-		`,
+		`, // TODO: ChairMapを使う
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)

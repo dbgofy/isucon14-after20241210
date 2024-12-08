@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -21,6 +22,22 @@ import (
 const RetryAfterMs = 3000
 
 var db *sqlx.DB
+
+var ChairMap = sync.Map{}
+
+func UpdateChair(chair *Chair) {
+	ChairMap.Store(chair.ID, chair)
+	ChairMap.Store(chair.AccessToken, chair)
+}
+
+// GetChair
+// AccessTokenかIDをキーにしてChairを取得する
+func GetChair(key string) *Chair {
+	if v, ok := ChairMap.Load(key); ok {
+		return v.(*Chair)
+	}
+	return nil
+}
 
 func main() {
 	mux := setup()
@@ -67,6 +84,18 @@ func setup() http.Handler {
 		panic(err)
 	}
 	db = _db
+
+	{
+		// chairの情報を起動時にメモリに持っておく
+		ChairMap = sync.Map{}
+		chairs := []Chair{}
+		if err := db.Select(&chairs, "SELECT * FROM chairs"); err != nil {
+			panic(err)
+		}
+		for _, chair := range chairs {
+			UpdateChair(&chair)
+		}
+	}
 
 	mux := chi.NewRouter()
 	mux.Use(middleware.Logger)
@@ -172,6 +201,16 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
+	}
+
+	ChairMap = sync.Map{}
+	chairs := []Chair{}
+	if err := db.SelectContext(ctx, &chairs, "SELECT * FROM chairs"); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	for _, chair := range chairs {
+		UpdateChair(&chair)
 	}
 
 	writeJSON(w, http.StatusOK, postInitializeResponse{Language: "go"})
