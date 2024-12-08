@@ -16,6 +16,8 @@
 0644:0:0:etc/mysql/mysql.conf.d/mysqld.cnf
 0755:0:0:etc/nginx
 0644:0:0:etc/nginx/nginx.conf
+0755:0:0:etc/nginx/sites-available
+0644:0:0:etc/nginx/sites-available/isuride.conf
 0755:0:0:etc/prometheus
 0644:0:0:etc/prometheus/hosts.json
 0644:0:0:etc/prometheus/prometheus.yml
@@ -11634,6 +11636,7 @@
 0644:0:0:home/isucon/webapp/sql/1-schema.sql
 0644:0:0:home/isucon/webapp/sql/2-master-data.sql
 0644:0:0:home/isucon/webapp/sql/3-initial-data.sql.gz
+0644:0:0:home/isucon/webapp/sql/4-migrate.sql
 0755:0:0:home/isucon/webapp/sql/init.sh
 0644:0:0:kataribe.toml
 0700:0:0:root/.ssh
