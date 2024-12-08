@@ -17,6 +17,8 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+const RetryAfterMs = 3000
+
 var db *sqlx.DB
 
 func main() {
