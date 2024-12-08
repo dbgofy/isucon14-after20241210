@@ -140,6 +140,35 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	chairLocations := []ChairLocation{}
+	if err := db.SelectContext(ctx, &chairLocations, "SELECT * FROM chair_locations ORDER BY created_at"); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	prevChairLocations := make(map[string]ChairLocation)
+	distanceByChairID := make(map[string]int)
+	for _, cl := range chairLocations {
+		prevChairLocation, ok := prevChairLocations[cl.ChairID]
+		prevChairLocations[cl.ChairID] = cl
+		if !ok {
+			continue
+		}
+		distanceByChairID[cl.ChairID] += abs(cl.Latitude-prevChairLocation.Latitude) + abs(cl.Longitude-prevChairLocation.Longitude)
+	}
+	chairTotalDistances := make([]ChairTotalDistance, 0, len(distanceByChairID))
+	for chairID, distance := range distanceByChairID {
+		chairTotalDistances = append(chairTotalDistances, ChairTotalDistance{ChairID: chairID, Distance: distance})
+	}
+	_, err := db.ExecContext(
+		ctx,
+		"INSERT INTO chair_locations_minus_distance (id, chair_id, distance) VALUES (?, ?, ?)",
+		chairTotalDistances,
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
 	writeJSON(w, http.StatusOK, postInitializeResponse{Language: "go"})
 }
 

@@ -255,10 +255,7 @@ WHERE owner_id = ?
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	var totalDistances []struct {
-		ChairID  string `db:"chair_id"`
-		Distance int    `db:"total_distance"`
-	}
+	totalDistances := []ChairTotalDistance{}
 	if err := db.Select(&totalDistances, query, params...); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
