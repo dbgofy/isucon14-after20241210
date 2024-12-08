@@ -22,11 +22,19 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 	}
 
 	notCompletedChairIDs := []string{}
-	if err := tx.SelectContext(ctx, &notCompletedChairIDs, `SELECT DISTINCT chair_id FROM rides where evaluation IS NULL AND chair_id IS NOT NULL`); err != nil {
+	if err := tx.SelectContext(ctx, &notCompletedChairIDs, `SELECT chair_id FROM rides where evaluation IS NULL AND chair_id IS NOT NULL`); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 	notCompletedChairIDsSet := make(map[string]struct{}, len(notCompletedChairIDs))
+	for _, id := range notCompletedChairIDs {
+		notCompletedChairIDsSet[id] = struct{}{}
+	}
+	notCompletedChairIDs = []string{}
+	if err := tx.SelectContext(ctx, &notCompletedChairIDs, `SELECT chair_id FROM rides where evaluation IS NOT NULL AND updated_at < NOW(6) - INTERVAL 1.5 SECOND`); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
 	for _, id := range notCompletedChairIDs {
 		notCompletedChairIDsSet[id] = struct{}{}
 	}
