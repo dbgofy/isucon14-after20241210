@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -70,6 +71,9 @@ func ListChairLocations(key string) (cls []*ChairLocation) {
 			cls = append(cls, cl)
 		}
 		return true
+	})
+	sort.Slice(cls, func(i, j int) bool {
+		return cls[i].ID < cls[j].ID
 	})
 	return
 }
