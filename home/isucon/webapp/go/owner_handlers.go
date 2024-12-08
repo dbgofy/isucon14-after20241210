@@ -215,11 +215,6 @@ WHERE owner_id = ?
 		chairIDs = append(chairIDs, chair.ID)
 	}
 
-	type chairTotalDistance struct {
-		ChairID  string `db:"chair_id"`
-		Distance int    `db:"total_distance"`
-	}
-
 	totalDistanceByChairID := make(map[string]int)
 	for _, c := range chairs {
 		locations := ListChairLocations(c.ID)
@@ -233,17 +228,12 @@ WHERE owner_id = ?
 				continue
 			}
 
-			lat := l.Latitude - prev.Latitude
-			if lat < 0 {
-				lat = -lat
-			}
+			lat := abs(l.Latitude - prev.Latitude)
 
-			lon := l.Longitude - prev.Longitude
-			if lon < 0 {
-				lon = -lon
-			}
+			lon := abs(l.Longitude - prev.Longitude)
 
 			distance += lat + lon
+			prev = l
 		}
 		totalDistanceByChairID[c.ID] = distance
 	}
