@@ -66,6 +66,10 @@ func GetChairLocation(key string) *ChairLocation {
 // ChairID をキーにして ChairLocation list を取得する
 func ListChairLocations(key string) (cls []*ChairLocation) {
 	ChairLocationMap.Range(func(k, v any) bool {
+		if key == k.(string) {
+			return true
+		}
+
 		cl := v.(*ChairLocation)
 		if cl.ChairID == key {
 			cls = append(cls, cl)
