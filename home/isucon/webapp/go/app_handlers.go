@@ -894,14 +894,14 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		chairIDs = append(chairIDs, chair.ID)
 	}
 
-	query, params, err := sqlx.In(`SELECT chair_id, max(id) FROM chair_locations WHERE chair_id IN (?) ORDER BY chair_id`, chairIDs)
+	query, params, err := sqlx.In(`SELECT chair_id, max(id) as max_id FROM chair_locations WHERE chair_id IN (?) ORDER BY chair_id`, chairIDs)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 	var chairLocationsIDs []struct {
 		ChairID string `db:"chair_id"`
-		ID      string `db:"id"`
+		ID      string `db:"max_id"`
 	}
 	err = tx.SelectContext(ctx, &chairLocationsIDs, query, params...)
 	if err != nil {
