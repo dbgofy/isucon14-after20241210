@@ -43,7 +43,7 @@
 0755:0:0:home
 0644:0:0:home/isucon/.bashrc
 0644:0:0:home/isucon/.bashrc.backup
-0755:1100:1100:home/isucon/env.sh
+0755:0:0:home/isucon/env.sh
 0755:1100:1100:home/isucon/webapp/go
 0755:1100:1100:home/isucon/webapp
 0644:0:0:home/isucon/webapp/go/app_handlers.go
