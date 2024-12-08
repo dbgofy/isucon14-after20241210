@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/oklog/ulid/v2"
 )
@@ -111,20 +112,44 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
+	prevLocation := &ChairLocation{} // 一個前の座標
+	if err := tx.GetContext(ctx, prevLocation, `SELECT * FROM chair_locations WHERE chair_id = ? ORDER BY created_at DESC`, chair.ID); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
+
 	chairLocationID := ulid.Make().String()
+	now := time.Now()
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO chair_locations (id, chair_id, latitude, longitude) VALUES (?, ?, ?, ?)`,
-		chairLocationID, chair.ID, req.Latitude, req.Longitude,
+		`INSERT INTO chair_locations (id, chair_id, latitude, longitude, created_at) VALUES (?, ?, ?, ?, ?)`,
+		chairLocationID, chair.ID, req.Latitude, req.Longitude, now,
 	); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	location := &ChairLocation{}
-	if err := tx.GetContext(ctx, location, `SELECT * FROM chair_locations WHERE id = ?`, chairLocationID); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
+	location := &ChairLocation{
+		ID:        chairLocationID,
+		ChairID:   chair.ID,
+		Latitude:  req.Latitude,
+		Longitude: req.Longitude,
+		CreatedAt: now,
+	}
+
+	if prevLocation != nil {
+		_, err = tx.ExecContext(
+			ctx,
+			"INSERT INTO chair_locations_minus_distance (id, chair_id, distance) VALUES (?, ?, ?), (?, ?, ?)",
+			ulid.Make().String(), chair.ID, abs(prevLocation.Longitude-location.Longitude),
+			ulid.Make().String(), chair.ID, abs(prevLocation.Latitude-location.Latitude),
+		)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
 	}
 
 	ride := &Ride{}

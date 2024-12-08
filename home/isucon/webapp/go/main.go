@@ -4,6 +4,7 @@ import (
 	crand "crypto/rand"
 	"encoding/json"
 	"fmt"
+	"github.com/oklog/ulid/v2"
 	"log/slog"
 	"net"
 	"net/http"
@@ -136,6 +137,39 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := db.ExecContext(ctx, "UPDATE settings SET value = ? WHERE name = 'payment_gateway_url'", req.PaymentServer); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	chairLocations := []ChairLocation{}
+	if err := db.SelectContext(ctx, &chairLocations, "SELECT * FROM chair_locations ORDER BY created_at"); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	prevChairLocations := make(map[string]ChairLocation)
+	distanceByChairID := make(map[string]int)
+	for _, cl := range chairLocations {
+		prevChairLocation, ok := prevChairLocations[cl.ChairID]
+		prevChairLocations[cl.ChairID] = cl
+		if !ok {
+			continue
+		}
+		distanceByChairID[cl.ChairID] += abs(cl.Latitude-prevChairLocation.Latitude) + abs(cl.Longitude-prevChairLocation.Longitude)
+	}
+	chairTotalDistances := make([]ChairTotalDistance, 0, len(distanceByChairID))
+	for chairID, distance := range distanceByChairID {
+		chairTotalDistances = append(chairTotalDistances, ChairTotalDistance{
+			ID:       ulid.Make().String(),
+			ChairID:  chairID,
+			Distance: distance,
+		})
+	}
+	_, err := db.NamedExecContext(
+		ctx,
+		"INSERT INTO chair_locations_minus_distance (id, chair_id, distance) VALUES (:id, :chair_id, :distance)",
+		chairTotalDistances,
+	)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}

@@ -29,6 +29,12 @@ type ChairLocation struct {
 	CreatedAt time.Time `db:"created_at"`
 }
 
+type ChairTotalDistance struct {
+	ID       string `db:"id"`
+	ChairID  string `db:"chair_id"`
+	Distance int    `db:"distance"`
+}
+
 type User struct {
 	ID             string    `db:"id"`
 	Username       string    `db:"username"`
