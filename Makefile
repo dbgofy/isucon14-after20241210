@@ -189,9 +189,9 @@ start:
 /home/isucon/webapp/go/isuride: /home/isucon/webapp/go
 	# chown -R isucon:isucon /home/isucon/webapp/img
 	cd $<; /usr/local/bin/go build -o $@ .
-	scp $@ root@192.168.0.11:$@
-	scp $@ root@192.168.0.12:$@
-	scp $@ root@192.168.0.13:$@
+	scp $@ root@isucon14-contest-1:$@
+	scp $@ root@isucon14-contest-2:$@
+	scp $@ root@isucon14-contest-3:$@
 
 .PHONY: logrotate
 logrotate:
