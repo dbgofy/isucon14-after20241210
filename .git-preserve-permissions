@@ -11614,8 +11614,15 @@
 0644:0:0:home/isucon/webapp/go/models.go
 0644:0:0:home/isucon/webapp/go/owner_handlers.go
 0644:0:0:home/isucon/webapp/go/payment_gateway.go
+0644:1100:1100:home/isucon/webapp/openapi.yaml
 0755:1100:1100:home/isucon/webapp/payment_mock
 0644:0:0:home/isucon/webapp/payment_mock/main.go
+0755:1100:1100:home/isucon/webapp/sql
+0644:1100:1100:home/isucon/webapp/sql/0-init.sql
+0644:1100:1100:home/isucon/webapp/sql/1-schema.sql
+0644:1100:1100:home/isucon/webapp/sql/2-master-data.sql
+0644:1100:1100:home/isucon/webapp/sql/3-initial-data.sql.gz
+0755:1100:1100:home/isucon/webapp/sql/init.sh
 0700:0:0:root/.ssh
 0700:0:0:root
 0644:0:0:root/.ssh/authorized_keys
