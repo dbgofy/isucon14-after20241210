@@ -270,19 +270,8 @@ WHERE owner_id = ?
 
 	res := ownerGetChairResponse{}
 	for _, chair := range chairs {
-		totalDistance := totalDistanceByChairID[chair.ID] * 2
+		totalDistance := totalDistanceByChairID[chair.ID]
 		chairLocation := chairLocationByChairID[chair.ID]
-		if len(chairLocation) == 2 {
-			lat := chairLocation[0].Latitude - chairLocation[1].Latitude
-			if lat < 0 {
-				lat = -lat
-			}
-			lon := chairLocation[0].Longitude - chairLocation[1].Longitude
-			if lon < 0 {
-				lon = -lon
-			}
-			totalDistance += lat + lon
-		}
 		var totalDistanceUpdatedAt *time.Time
 		for _, cl := range chairLocation {
 			if totalDistanceUpdatedAt == nil || cl.CreatedAt.After(*totalDistanceUpdatedAt) {

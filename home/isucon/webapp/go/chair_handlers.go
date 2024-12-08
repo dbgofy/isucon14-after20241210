@@ -135,20 +135,17 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	if prevLocation.Latitude > location.Latitude {
-		_, err = tx.ExecContext(
-			ctx,
-			"INSERT INTO chair_locations_minus_distance (id, chair_id, distance) VALUES (?, ?, ?)",
-			ulid.Make().String(), chair.ID, prevLocation.Latitude-location.Latitude,
-		)
-	}
-	if prevLocation.Longitude > location.Longitude {
-		_, err = tx.ExecContext(
-			ctx,
-			"INSERT INTO chair_locations_minus_distance (id, chair_id, distance) VALUES (?, ?, ?)",
-			ulid.Make().String(), chair.ID, prevLocation.Longitude-location.Longitude,
-		)
-	}
+	_, err = tx.ExecContext(
+		ctx,
+		"INSERT INTO chair_locations_minus_distance (id, chair_id, distance) VALUES (?, ?, ?)",
+		ulid.Make().String(), chair.ID, abs(prevLocation.Latitude-location.Latitude),
+	)
+
+	_, err = tx.ExecContext(
+		ctx,
+		"INSERT INTO chair_locations_minus_distance (id, chair_id, distance) VALUES (?, ?, ?)",
+		ulid.Make().String(), chair.ID, abs(prevLocation.Longitude-location.Longitude),
+	)
 
 	ride := &Ride{}
 	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC LIMIT 1`, chair.ID); err != nil {
