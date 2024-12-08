@@ -4,6 +4,7 @@ import (
 	crand "crypto/rand"
 	"encoding/json"
 	"fmt"
+	ulid "github.com/dbgofy/isucon14/home/isucon/go/pkg/mod/github.com/oklog/ulid/v2@v2.1.0"
 	"log/slog"
 	"net"
 	"net/http"
@@ -157,11 +158,15 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 	chairTotalDistances := make([]ChairTotalDistance, 0, len(distanceByChairID))
 	for chairID, distance := range distanceByChairID {
-		chairTotalDistances = append(chairTotalDistances, ChairTotalDistance{ChairID: chairID, Distance: distance})
+		chairTotalDistances = append(chairTotalDistances, ChairTotalDistance{
+			ID:       ulid.Make().String(),
+			ChairID:  chairID,
+			Distance: distance,
+		})
 	}
-	_, err := db.ExecContext(
+	_, err := db.NamedExecContext(
 		ctx,
-		"INSERT INTO chair_locations_minus_distance (id, chair_id, distance) VALUES (?, ?, ?)",
+		"INSERT INTO chair_locations_minus_distance (id, chair_id, distance) VALUES (:id, :chair_id, :distance)",
 		chairTotalDistances,
 	)
 	if err != nil {
