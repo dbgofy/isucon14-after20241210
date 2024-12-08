@@ -17,3 +17,11 @@
 /home/isucon/*
 !/home/isucon/.bashrc
 
+# /etc/mysql/my.cnf
+/*
+!/etc
+/etc/*
+!/etc/mysql
+/etc/mysql/*
+!/etc/mysql/my.cnf
+
