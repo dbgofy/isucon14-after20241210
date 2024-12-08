@@ -16,7 +16,8 @@
 0644:0:0:etc/mysql/mysql.conf.d/mysqld.cnf
 0755:0:0:etc/nginx
 0644:0:0:etc/nginx/nginx.conf
-0755:0:0:etc/nginx/sites-enabled
+0755:0:0:etc/nginx/sites-available
+0644:0:0:etc/nginx/sites-available/isuride.conf
 0755:0:0:etc/prometheus
 0644:0:0:etc/prometheus/hosts.json
 0644:0:0:etc/prometheus/prometheus.yml
