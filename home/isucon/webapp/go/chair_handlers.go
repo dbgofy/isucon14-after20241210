@@ -112,6 +112,12 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
+	prevLocation := &ChairLocation{} // 一個前の座標
+	if err := tx.GetContext(ctx, prevLocation, `SELECT * FROM chair_locations WHERE chair_id = ? ORDER BY created_at DESC`, chair.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
 	chairLocationID := ulid.Make().String()
 	now := time.Now()
 	if _, err := tx.ExecContext(
@@ -129,11 +135,6 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 		Latitude:  req.Latitude,
 		Longitude: req.Longitude,
 		CreatedAt: now,
-	}
-	prevLocation := &ChairLocation{} // 一個前の座標
-	if err := tx.GetContext(ctx, prevLocation, `SELECT * FROM chair_locations WHERE chair_id = ? ORDER BY created_at DESC`, chair.ID); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
 	}
 
 	_, err = tx.ExecContext(
