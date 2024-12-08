@@ -90,14 +90,42 @@ duration_index = 10
 #[[bundle]]
 #regexp = '^(GET|HEAD) /users/[0-9]+\b'
 #name = 'GET /memo/*'
-#
-#[[bundle]]
-#regexp = '^(GET|HEAD) /stylesheets/'
-#name = 'GET /stylesheets/*'
-#
-#[[bundle]]
-#regexp = '^(GET|HEAD) /images/'
-#name = 'GET /images/*'
+
+## favicon files
+[[bundle]]
+regexp = '^(GET|HEAD) /favicon'
+name = 'GET /favicon*'
+
+## static files
+[[bundle]]
+regexp = '^(GET|HEAD) /assets/'
+name = 'GET /assets/*'
+
+## images files
+[[bundle]]
+regexp = '^(GET|HEAD) /images/'
+name = 'GET /images/*'
+
+## GET /api/app/nearby-chairs?distance=...
+[[bundle]]
+regexp = '^GET /api/app/nearby-chairs\?'
+name = 'GET /api/app/neraby-chairs?distance=:distance&latitude=:latitude&longitude=:longitude'
+
+## POST /api/chair/rides/:ulid/status
+[[bundle]]
+regexp = '^POST /api/chair/rides/[A-HJKLMNP-Z0-9]{26}/status'
+name = 'POST /api/chair/rides/:ulid/status'
+
+## POST /api/app/rides/:ulid/evaluation
+[[bundle]]
+regexp = '^POST /api/app/rides/[A-HJKMNP-Z0-9]{26}/evaluation'
+name = 'POST /api/app/rides/:ulid/evaluation'
+
+## GET /api/owner/sales?since=...&until=...
+[[bundle]]
+regexp = '^GET /api/owner/sales\?'
+name = 'GET /api/owner/sales?since=:since&until=:until'
+
 
 ################################################################################
 # Replace
