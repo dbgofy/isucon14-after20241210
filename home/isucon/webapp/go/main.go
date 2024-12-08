@@ -151,6 +151,7 @@ func setup() http.Handler {
 	mux := chi.NewRouter()
 	mux.Use(middleware.Logger)
 	mux.Use(middleware.Recoverer)
+
 	mux.HandleFunc("POST /api/initialize", postInitialize)
 
 	// app handlers
@@ -191,6 +192,9 @@ func setup() http.Handler {
 	{
 		mux.HandleFunc("GET /api/internal/matching", internalGetMatching)
 	}
+
+	// pprof
+	mux.Mount("/debug", middleware.Profiler())
 
 	return mux
 }
