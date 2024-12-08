@@ -59,3 +59,9 @@
 /files/hosts/*
 !/files/hosts/ip-192-168-0-11
 
+# /etc/hosts
+/*
+!/etc
+/etc/*
+!/etc/hosts
+

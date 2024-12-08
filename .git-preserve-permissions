@@ -8,8 +8,9 @@
 0644:0:0:LICENSE
 0644:0:0:Makefile
 0644:0:0:README.md
-0755:0:0:etc/mysql
 0755:0:0:etc
+0644:0:0:etc/hosts
+0755:0:0:etc/mysql
 0644:0:0:etc/mysql/mysql.cnf
 0755:0:0:etc/mysql/mysql.conf.d
 0644:0:0:etc/mysql/mysql.conf.d/mysqld.cnf
