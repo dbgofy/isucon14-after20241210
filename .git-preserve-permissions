@@ -11608,6 +11608,8 @@
 0755:1100:1100:home/isucon/webapp
 0644:0:0:home/isucon/webapp/go/app_handlers.go
 0644:0:0:home/isucon/webapp/go/chair_handlers.go
+0644:1100:1100:home/isucon/webapp/go/go.mod
+0644:1100:1100:home/isucon/webapp/go/go.sum
 0644:0:0:home/isucon/webapp/go/internal_handlers.go
 0644:0:0:home/isucon/webapp/go/main.go
 0644:0:0:home/isucon/webapp/go/middlewares.go
