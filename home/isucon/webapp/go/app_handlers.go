@@ -894,45 +894,10 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		chairIDs = append(chairIDs, chair.ID)
 	}
 
-	query, params, err := sqlx.In(`SELECT chair_id, max(id) as max_id FROM chair_locations WHERE chair_id IN (?) GROUP BY chair_id`, chairIDs)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	var chairLocationsIDs []struct {
-		ChairID string `db:"chair_id"`
-		ID      string `db:"max_id"`
-	}
-	err = tx.SelectContext(ctx, &chairLocationsIDs, query, params...)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	chairLocationIDs := make([]string, 0, len(chairLocationsIDs))
-	for _, location := range chairLocationsIDs {
-		chairLocationIDs = append(chairLocationIDs, location.ID)
-	}
-
-	query, params, err = sqlx.In(`SELECT * FROM chair_locations WHERE id IN (?)`, chairLocationIDs)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	chairLocations := []ChairLocation{}
-	err = tx.SelectContext(ctx, &chairLocations, query, params...)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	chairLocationByChairID := map[string]ChairLocation{}
-	for _, location := range chairLocations {
-		chairLocationByChairID[location.ChairID] = location
-	}
-
 	for _, chair := range chairs {
 		// 最新の位置情報を取得
-		chairLocation, ok := chairLocationByChairID[chair.ID]
-		if !ok {
+		chairLocation := GetChairLocation(chair.ID)
+		if chairLocation == nil {
 			continue
 		}
 

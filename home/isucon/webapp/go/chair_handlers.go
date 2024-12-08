@@ -137,14 +137,25 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 
 	chairLocationID := ulid.Make().String()
 	now := time.Now()
-	if _, err := tx.ExecContext(
-		ctx,
-		`INSERT INTO chair_locations (id, chair_id, latitude, longitude, created_at) VALUES (?, ?, ?, ?, ?)`,
-		chairLocationID, chair.ID, req.Latitude, req.Longitude, now,
-	); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
+	cl := ChairLocation{
+		ID:        chairLocationID,
+		ChairID:   chair.ID,
+		Latitude:  req.Latitude,
+		Longitude: req.Longitude,
+		CreatedAt: now,
 	}
+	InsertChairLocation(&cl)
+	go func() {
+		time.Sleep(90 * time.Second)
+		db.ExecContext(
+			ctx,
+			`INSERT INTO chair_locations (id, chair_id, latitude, longitude, created_at) VALUES (?, ?, ?, ?, ?)`,
+			chairLocationID, chair.ID, req.Latitude, req.Longitude, now,
+		)
+	}()
+	/*
+
+	 */
 
 	location := &ChairLocation{
 		ID:        chairLocationID,
