@@ -175,15 +175,15 @@ build: stop /home/isucon/webapp/go/isuride start
 
 .PHONY: stop
 stop:
-	ssh root@192.168.0.11 systemctl stop isuride-go.service
-	ssh root@192.168.0.12 systemctl stop isuride-go.service
-	ssh root@192.168.0.13 systemctl stop isuride-go.service
+	ssh root@isucon14-contest-1 systemctl stop isuride-go.service
+	ssh root@isucon14-contest-2 systemctl stop isuride-go.service
+	ssh root@isucon14-contest-3 systemctl stop isuride-go.service
 
 .PHONY: start
 start:
-	ssh root@192.168.0.11 systemctl start isuride-go.service
-	ssh root@192.168.0.12 systemctl start isuride-go.service
-	ssh root@192.168.0.13 systemctl start isuride-go.service
+	ssh root@isucon14-contest-1 systemctl start isuride-go.service
+	ssh root@isucon14-contest-2 systemctl start isuride-go.service
+	ssh root@isucon14-contest-3 systemctl start isuride-go.service
 
 .PHONY: /home/isucon/webapp/go/isuride
 /home/isucon/webapp/go/isuride: /home/isucon/webapp/go
