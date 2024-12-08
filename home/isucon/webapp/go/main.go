@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -25,7 +26,12 @@ var db *sqlx.DB
 
 var ChairMap = sync.Map{}
 
-func UpdateChair(chair *Chair) {
+func UpdateChair(chair *Chair, updatedAt *time.Time) {
+	if updatedAt != nil {
+		chair.UpdatedAt = *updatedAt
+	} else {
+		chair.UpdatedAt = time.Now()
+	}
 	ChairMap.Store(chair.ID, chair)
 	ChairMap.Store(chair.AccessToken, chair)
 }
@@ -93,7 +99,7 @@ func setup() http.Handler {
 			panic(err)
 		}
 		for _, chair := range chairs {
-			UpdateChair(&chair)
+			UpdateChair(&chair, &chair.UpdatedAt)
 		}
 	}
 
@@ -210,7 +216,7 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, chair := range chairs {
-		UpdateChair(&chair)
+		UpdateChair(&chair, &chair.UpdatedAt)
 	}
 
 	writeJSON(w, http.StatusOK, postInitializeResponse{Language: "go"})

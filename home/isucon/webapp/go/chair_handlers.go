@@ -65,7 +65,7 @@ func chairPostChairs(w http.ResponseWriter, r *http.Request) {
 		AccessToken: accessToken,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-	})
+	}, &now)
 
 	http.SetCookie(w, &http.Cookie{
 		Path:  "/",
@@ -99,7 +99,7 @@ func chairPostActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	chair.IsActive = req.IsActive
-	UpdateChair(chair)
+	UpdateChair(chair, nil)
 
 	w.WriteHeader(http.StatusNoContent)
 }
