@@ -1,4 +1,4 @@
-ISUCON_DB_HOST="isucon14-contest-2"
+ISUCON_DB_HOST="isucon14-db"
 ISUCON_DB_PORT="3306"
 ISUCON_DB_USER="isucon"
 ISUCON_DB_PASSWORD="isucon"
