@@ -171,7 +171,7 @@ grafana-server: /usr/local/bin/grafana-server
 	cp -f /files/grafana/dashboards.yml $@/conf/provisioning/dashboards/dashboards.yml
 
 .PHONY: deploy
-build: stop /home/isucon/webapp/go/isuride start
+deploy: stop /home/isucon/webapp/go/isuride start
 
 .PHONY: stop
 stop:
