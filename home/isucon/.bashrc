@@ -117,3 +117,4 @@ if ! shopt -oq posix; then
 fi
 
 . "$HOME/.local/bin/env"
+alias git="sudo git"
