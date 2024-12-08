@@ -875,7 +875,17 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	err = tx.SelectContext(
 		ctx,
 		&chairs,
-		`SELECT * FROM chairs`,
+		`
+			SELECT c.id, c.owner_id, c.name, c.model, c.is_active, c.access_token, c.created_at, c.updated_at
+			FROM chairs AS c
+			LEFT JOIN rides AS r
+							ON r.chair_id = c.id
+			LEFT JOIN ride_statuses AS rs
+							ON rs.ride_id = r.id
+							AND status = 'COMPLETED'
+			GROUP BY c.id, c.owner_id, c.name, c.model, c.is_active, c.access_token, c.created_at, c.updated_at
+			HAVING COUNT(r.id) - COUNT(rs.id) = 0
+		`,
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
