@@ -117,6 +117,8 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 		if !errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusInternalServerError, err)
 			return
+		} else {
+			prevLocation = nil
 		}
 	}
 
