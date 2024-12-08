@@ -37,7 +37,7 @@ func UpdateChair(chair *Chair, updatedAt *time.Time) {
 	ChairMap.Store(chair.AccessToken, chair)
 }
 
-func InsertChair(cl *ChairLocation) {
+func InsertChairLocation(cl *ChairLocation) {
 	ChairLocationMap.Store(cl.ID, cl)
 	ChairLocationMap.Store(cl.ChairID, cl)
 }
