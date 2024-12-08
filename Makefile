@@ -43,7 +43,7 @@ sshd: /etc/sudoers /etc/ssh/sshd_config
 	echo 'PermitUserEnvironment yes' >> $@
 	echo 'PermitRootLogin without-password' >> $@
 	sshd -t
-	systemctl reload sshd
+	systemctl reload ssh
 
 /etc/ssh/sshd_config.bak:
 	cp -p /etc/ssh/sshd_config $@
