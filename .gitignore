@@ -33,3 +33,13 @@
 /etc/mysql/*
 !/etc/mysql/mysql.cnf
 
+# /etc/mysql/mysql.conf.d/mysqld.cnf
+/*
+!/etc
+/etc/*
+!/etc/mysql
+/etc/mysql/*
+!/etc/mysql/mysql.conf.d
+/etc/mysql/mysql.conf.d/*
+!/etc/mysql/mysql.conf.d/mysqld.cnf
+

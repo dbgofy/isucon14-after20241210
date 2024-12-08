@@ -11,6 +11,8 @@
 0755:0:0:etc/mysql
 0755:0:0:etc
 0644:0:0:etc/mysql/mysql.cnf
+0755:0:0:etc/mysql/mysql.conf.d
+0644:0:0:etc/mysql/mysql.conf.d/mysqld.cnf
 0755:0:0:etc/prometheus
 0644:0:0:etc/prometheus/hosts.json
 0644:0:0:etc/prometheus/prometheus.yml
