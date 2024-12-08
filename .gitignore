@@ -1,3 +1,11 @@
 *
 !.gitignore
 !.git-preserve-permissions
+# /home/isucon/.bashrc.backup
+/*
+!/home
+/home/*
+!/home/isucon
+/home/isucon/*
+!/home/isucon/.bashrc.backup
+

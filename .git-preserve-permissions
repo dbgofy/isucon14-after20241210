@@ -23,6 +23,9 @@
 0644:0:0:files/pubkey/ip-192-168-0-11
 0644:0:0:files/pubkey/ip-192-168-0-12
 0644:0:0:files/vimrc
+0755:1100:1100:home/isucon
+0755:0:0:home
+0644:0:0:home/isucon/.bashrc.backup
 0700:0:0:root/.ssh
 0700:0:0:root
 0644:0:0:root/.ssh/authorized_keys
