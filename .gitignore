@@ -25,3 +25,11 @@
 /etc/mysql/*
 !/etc/mysql/my.cnf
 
+# /etc/mysql/mysql.cnf
+/*
+!/etc
+/etc/*
+!/etc/mysql
+/etc/mysql/*
+!/etc/mysql/mysql.cnf
+
