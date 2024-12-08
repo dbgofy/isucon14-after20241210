@@ -29,18 +29,18 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	candidateCarIDs := []string{}
+	candidateChairIDs := []string{}
 	for _, chair := range chairs {
 		if _, ok := notCompletedChairIDsSet[chair.ID]; !ok {
-			candidateCarIDs = append(candidateCarIDs, chair.ID)
+			candidateChairIDs = append(candidateChairIDs, chair.ID)
 		}
 	}
 
 	for id, ride := range rides {
-		if len(candidateCarIDs) == id {
+		if len(candidateChairIDs) == id {
 			break
 		}
-		if _, err := db.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", candidateCarIDs[id], ride.ID); err != nil {
+		if _, err := db.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", candidateChairIDs[id], ride.ID); err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
