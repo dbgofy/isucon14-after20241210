@@ -4,7 +4,7 @@ import (
 	crand "crypto/rand"
 	"encoding/json"
 	"fmt"
-	ulid "github.com/dbgofy/isucon14/home/isucon/go/pkg/mod/github.com/oklog/ulid/v2@v2.1.0"
+	"github.com/oklog/ulid/v2"
 	"log/slog"
 	"net"
 	"net/http"
