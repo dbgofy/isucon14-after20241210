@@ -3,6 +3,8 @@ package main
 import (
 	"database/sql"
 	"errors"
+	"github.com/jmoiron/sqlx"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -202,37 +204,101 @@ func ownerGetChairs(w http.ResponseWriter, r *http.Request) {
        model,
        is_active,
        created_at,
-       updated_at,
-       IFNULL(total_distance, 0) AS total_distance,
-       total_distance_updated_at
+       updated_at
 FROM chairs
-       LEFT JOIN (SELECT chair_id,
-                          SUM(IFNULL(distance, 0)) AS total_distance,
-                          MAX(created_at)          AS total_distance_updated_at
-                   FROM (SELECT chair_id,
-                                created_at,
-                                ABS(latitude - LAG(latitude) OVER (PARTITION BY chair_id ORDER BY created_at)) +
-                                ABS(longitude - LAG(longitude) OVER (PARTITION BY chair_id ORDER BY created_at)) AS distance
-                         FROM chair_locations) tmp
-                   GROUP BY chair_id) distance_table ON distance_table.chair_id = chairs.id
 WHERE owner_id = ?
 `, owner.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
+	chairIDs := make([]string, 0, len(chairs))
+	for _, chair := range chairs {
+		chairIDs = append(chairIDs, chair.ID)
+	}
+
+	query, params, err := sqlx.In("SELECT chair_id, MAX(id) AS max_id, MIN(id) AS min_id FROM chair_locations WHERE char_id IN (?) GROUP BY id", chairIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	var chairLocationMaxMin []struct {
+		ChairID string `db:"chair_id"`
+		MaxID   string `db:"max_id"`
+		MinID   string `db:"min_id"`
+	}
+	if err := db.Select(&chairLocationMaxMin, query, params...); err != nil {
+		log.Fatal(err)
+	}
+
+	chairLocationIDs := make([]string, 0, len(chairLocationMaxMin)*2)
+	for _, cm := range chairLocationMaxMin {
+		chairLocationIDs = append(chairLocationIDs, cm.MaxID, cm.MinID)
+	}
+	chairLocations := []ChairLocation{}
+	query, params, err = sqlx.In("SELECT * FROM chair_locations WHERE id IN (?)", chairLocationIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if err := db.Select(&chairLocations, query, params...); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	chairLocationByChairID := map[string][]ChairLocation{}
+	for _, cl := range chairLocations {
+		chairLocationByChairID[cl.ChairID] = append(chairLocationByChairID[cl.ChairID], cl) // 最大二地点まで入ってるはず
+	}
+
+	query, params, err = sqlx.In("SELECT chair_id, SUM(distance) AS total_distance FROM chair_locations_minus_distance WHERE char_id IN (?)", chairIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	var totalDistances []struct {
+		ChairID  string `db:"chair_id"`
+		Distance int    `db:"total_distance"`
+	}
+	if err := db.Select(&totalDistances, query, params...); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	totalDistanceByChairID := map[string]int{}
+	for _, td := range totalDistances {
+		totalDistanceByChairID[td.ChairID] = td.Distance
+	}
+
 	res := ownerGetChairResponse{}
 	for _, chair := range chairs {
+		totalDistance := totalDistanceByChairID[chair.ID]
+		chairLocation := chairLocationByChairID[chair.ID]
+		if len(chairLocation) == 2 {
+			lat := chairLocation[0].Latitude - chairLocation[1].Latitude
+			if lat < 0 {
+				lat = -lat
+			}
+			lon := chairLocation[0].Longitude - chairLocation[1].Longitude
+			if lon < 0 {
+				lon = -lon
+			}
+			totalDistance += lat + lon
+		}
+		var totalDistanceUpdatedAt *time.Time
+		for _, cl := range chairLocation {
+			if totalDistanceUpdatedAt == nil || cl.CreatedAt.After(*totalDistanceUpdatedAt) {
+				totalDistanceUpdatedAt = &cl.CreatedAt
+			}
+		}
 		c := ownerGetChairResponseChair{
 			ID:            chair.ID,
 			Name:          chair.Name,
 			Model:         chair.Model,
 			Active:        chair.IsActive,
 			RegisteredAt:  chair.CreatedAt.UnixMilli(),
-			TotalDistance: chair.TotalDistance,
+			TotalDistance: totalDistance,
 		}
-		if chair.TotalDistanceUpdatedAt.Valid {
-			t := chair.TotalDistanceUpdatedAt.Time.UnixMilli()
+		if totalDistanceUpdatedAt != nil {
+			t := totalDistanceUpdatedAt.UnixMilli()
 			c.TotalDistanceUpdatedAt = &t
 		}
 		res.Chairs = append(res.Chairs, c)
