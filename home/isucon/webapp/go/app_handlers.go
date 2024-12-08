@@ -913,7 +913,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		chairLocationIDs = append(chairLocationIDs, location.ID)
 	}
 
-	query, params, err = sqlx.In(`SELECT * FROM chair_locations WHERE id IN (?) ORDER BY created_at DESC`, chairLocationIDs)
+	query, params, err = sqlx.In(`SELECT * FROM chair_locations WHERE id IN (?)`, chairLocationIDs)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
