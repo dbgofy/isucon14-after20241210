@@ -250,12 +250,16 @@ WHERE owner_id = ?
 		chairLocationByChairID[cl.ChairID] = append(chairLocationByChairID[cl.ChairID], cl) // 最大二地点まで入ってるはず
 	}
 
+	type chairTotalDistance struct {
+		ChairID  string `db:"chair_id"`
+		Distance int    `db:"total_distance"`
+	}
 	query, params, err = sqlx.In("SELECT chair_id, SUM(distance) AS total_distance FROM chair_locations_minus_distance WHERE chair_id IN (?) GROUP BY chair_id", chairIDs)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	totalDistances := []ChairTotalDistance{}
+	totalDistances := []chairTotalDistance{}
 	if err := db.Select(&totalDistances, query, params...); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
