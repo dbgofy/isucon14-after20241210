@@ -170,6 +170,29 @@ grafana-server: /usr/local/bin/grafana-server
 	cp -f /files/grafana/datasources.yml $@/conf/provisioning/datasources/datasources.yml
 	cp -f /files/grafana/dashboards.yml $@/conf/provisioning/dashboards/dashboards.yml
 
+.PHONY: deploy
+deploy: stop /home/isucon/webapp/go/isuride start
+
+.PHONY: stop
+stop:
+	ssh root@isucon14-contest-1 systemctl stop isuride-go.service
+	ssh root@isucon14-contest-2 systemctl stop isuride-go.service
+	ssh root@isucon14-contest-3 systemctl stop isuride-go.service
+
+.PHONY: start
+start:
+	ssh root@isucon14-contest-1 systemctl start isuride-go.service
+	ssh root@isucon14-contest-2 systemctl start isuride-go.service
+	ssh root@isucon14-contest-3 systemctl start isuride-go.service
+
+.PHONY: /home/isucon/webapp/go/isuride
+/home/isucon/webapp/go/isuride: /home/isucon/webapp/go
+	# chown -R isucon:isucon /home/isucon/webapp/img
+	cd $<; /usr/local/bin/go build -o $@ .
+	scp $@ root@isucon14-contest-1:$@
+	scp $@ root@isucon14-contest-2:$@
+	scp $@ root@isucon14-contest-3:$@
+
 .PHONY: logrotate
 logrotate:
 	ssh root@isucon14-contest-1 make -C / /var/log/mysql/mysqldumpslow.log &
