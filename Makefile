@@ -169,3 +169,24 @@ grafana-server: /usr/local/bin/grafana-server
 	curl -sL https://dl.grafana.com/oss/release/grafana-7.1.5.linux-amd64.tar.gz | tar xzv --strip-components 1 -C $@
 	cp -f /files/grafana/datasources.yml $@/conf/provisioning/datasources/datasources.yml
 	cp -f /files/grafana/dashboards.yml $@/conf/provisioning/dashboards/dashboards.yml
+
+.PHONY: logrotate
+logrotate:
+	ssh root@isucon14-contest-1 make -C / /var/log/mysql/mysqldumpslow.log &
+	ssh root@isucon14-contest-1 make -C / /var/log/nginx/kataribe.log &
+	ssh root@isucon14-contest-2 make -C / /var/log/mysql/mysqldumpslow.log &
+	ssh root@isucon14-contest-2 make -C / /var/log/nginx/kataribe.log &
+	ssh root@isucon14-contest-3 make -C / /var/log/mysql/mysqldumpslow.log &
+	ssh root@isucon14-contest-3 make -C / /var/log/nginx/kataribe.log &
+
+/var/log/mysql/mysqldumpslow.log: /var/log/mysql/mysql-slow.log
+	mysqldumpslow -s t $< > $@
+	hostname | DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/1314983570426695762/ilH7nAPrp2xERAMrT6MiYSe0-SLpLdyp6ltS5dCDc5cPuczHgSEtKLuTpxVTRBEkCZkd /usr/local/bin/discord-cat -f $@
+	test -s $< && cp -f $< $<.bak || true
+	> $<
+
+/var/log/nginx/kataribe.log: /var/log/nginx/access.log
+	kataribe -f /kataribe.toml < $< > $@
+	hostname | DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/1314983768578326579/y2Pzby4jafTgoRvwehVSB9ivrZgrHpwbuFvBxeCFK1G2T9sZJHl9n6CXp5uLA0Y7J2Ae /usr/local/bin/discord-cat -f $@
+	test -s $< && cp -f $< $<.bak || true
+	> $<
