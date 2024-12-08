@@ -140,6 +140,18 @@ func setup() http.Handler {
 		}
 	}
 
+	{
+		// chair_locations の情報を起動時にメモリに持っておく
+		ChairLocationMap = sync.Map{}
+		data := []ChairLocation{}
+		if err := db.Select(&data, "SELECT * FROM chair_locations"); err != nil {
+			panic(err)
+		}
+		for _, cl := range data {
+			InsertChairLocation(&cl)
+		}
+	}
+
 	mux := chi.NewRouter()
 	mux.Use(middleware.Logger)
 	mux.Use(middleware.Recoverer)
@@ -225,6 +237,7 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	prevChairLocations := make(map[string]ChairLocation)
 	distanceByChairID := make(map[string]int)
 	for _, cl := range chairLocations {
+		InsertChairLocation(&cl)
 		prevChairLocation, ok := prevChairLocations[cl.ChairID]
 		prevChairLocations[cl.ChairID] = cl
 		if !ok {
