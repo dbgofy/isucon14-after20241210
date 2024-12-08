@@ -217,7 +217,7 @@ WHERE owner_id = ?
 		chairIDs = append(chairIDs, chair.ID)
 	}
 
-	query, params, err := sqlx.In("SELECT chair_id, MAX(id) AS max_id, MIN(id) AS min_id FROM chair_locations WHERE chair_id IN (?) GROUP BY id", chairIDs)
+	query, params, err := sqlx.In("SELECT chair_id, MAX(id) AS max_id, MIN(id) AS min_id FROM chair_locations WHERE chair_id IN (?) GROUP BY chair_id", chairIDs)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -250,7 +250,7 @@ WHERE owner_id = ?
 		chairLocationByChairID[cl.ChairID] = append(chairLocationByChairID[cl.ChairID], cl) // 最大二地点まで入ってるはず
 	}
 
-	query, params, err = sqlx.In("SELECT chair_id, SUM(distance) AS total_distance FROM chair_locations_minus_distance WHERE chair_id IN (?)", chairIDs)
+	query, params, err = sqlx.In("SELECT chair_id, SUM(distance) AS total_distance FROM chair_locations_minus_distance WHERE chair_id IN (?) GROUP BY chair_id", chairIDs)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -270,7 +270,7 @@ WHERE owner_id = ?
 
 	res := ownerGetChairResponse{}
 	for _, chair := range chairs {
-		totalDistance := totalDistanceByChairID[chair.ID]
+		totalDistance := totalDistanceByChairID[chair.ID] * 2
 		chairLocation := chairLocationByChairID[chair.ID]
 		if len(chairLocation) == 2 {
 			lat := chairLocation[0].Latitude - chairLocation[1].Latitude
