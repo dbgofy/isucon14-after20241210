@@ -26,6 +26,7 @@ const RetryAfterMs = 1500
 var db *sqlx.DB
 
 var ChairMap = sync.Map{}
+var ChairLocationMap = sync.Map{}
 
 func UpdateChair(chair *Chair, updatedAt *time.Time) {
 	if updatedAt != nil {
