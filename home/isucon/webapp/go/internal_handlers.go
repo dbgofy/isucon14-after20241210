@@ -8,14 +8,21 @@ import (
 func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	// MEMO: 一旦最も待たせているリクエストに適当な空いている椅子マッチさせる実装とする。おそらくもっといい方法があるはず…
+	tx, err := db.Beginx()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	defer tx.Rollback()
+
 	rides := []Ride{}
-	if err := db.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
+	if err := tx.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	notCompletedChairIDs := []string{}
-	if err := db.SelectContext(ctx, &notCompletedChairIDs, `SELECT DISTINCT chair_id FROM rides where evaluation IS NULL AND chair_id IS NOT NULL`); err != nil {
+	if err := tx.SelectContext(ctx, &notCompletedChairIDs, `SELECT DISTINCT chair_id FROM rides where evaluation IS NULL AND chair_id IS NOT NULL`); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -25,7 +32,7 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chairs := []Chair{}
-	if err := db.SelectContext(ctx, &chairs, `SELECT * FROM chairs WHERE is_active = TRUE`); err != nil {
+	if err := tx.SelectContext(ctx, &chairs, `SELECT * FROM chairs WHERE is_active = TRUE`); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -36,14 +43,19 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	for id, ride := range rides {
-		if len(candidateChairIDs) == id {
+	for index, ride := range rides {
+		if len(candidateChairIDs) == index {
 			break
 		}
-		if _, err := db.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ? AND chair_id IS NULL", candidateChairIDs[id], ride.ID); err != nil {
+		if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ? AND chair_id IS NULL", candidateChairIDs[index], ride.ID); err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
