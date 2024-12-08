@@ -26,6 +26,7 @@
 0644:0:0:files/grafana/datasources.yml
 0755:0:0:files/hosts
 0644:0:0:files/hosts/ip-192-168-0-12
+0644:0:0:files/hosts/ip-192-168-0-13
 0755:0:0:files/pubkey
 0644:0:0:files/pubkey/ip-192-168-0-11
 0644:0:0:files/pubkey/ip-192-168-0-12
