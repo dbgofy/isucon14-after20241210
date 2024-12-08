@@ -15,7 +15,7 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 	}
 
 	notCompletedChairIDs := []string{}
-	if err := db.SelectContext(ctx, &notCompletedChairIDs, `SELECT chair_id FROM rides where evaluation IS NULL`); err != nil {
+	if err := db.SelectContext(ctx, &notCompletedChairIDs, `SELECT chair_id FROM rides where evaluation IS NULL AND chair_id IS NOT NULL`); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
