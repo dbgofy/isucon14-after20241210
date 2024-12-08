@@ -4,7 +4,6 @@ import (
 	crand "crypto/rand"
 	"encoding/json"
 	"fmt"
-	"github.com/oklog/ulid/v2"
 	"log/slog"
 	"net"
 	"net/http"
@@ -12,13 +11,15 @@ import (
 	"os/exec"
 	"strconv"
 
+	"github.com/oklog/ulid/v2"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
-const RetryAfterMs = 3000
+const RetryAfterMs = 1500
 
 var db *sqlx.DB
 
