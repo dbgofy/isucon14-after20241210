@@ -3,6 +3,7 @@ ALTER TABLE ride_statuses ADD INDEX IX_ride_statuses_ride_id_chair_sent_at_creat
 ALTER TABLE chair_locations ADD INDEX IX_chair_locations_chair_id_created_at (chair_id, created_at);
 ALTER TABLE chair_locations ADD INDEX IX_chair_locations_chair_id_id (chair_id, id);
 ALTER TABLE rides ADD INDEX IX_rides_chair_id_updated_at (chair_id, updated_at);
+ALTER TABLE rides ADD INDEX IX_rides_evaluation (evaluation);
 ALTER TABLE chairs ADD INDEX IX_chairs_access_token (access_token);
 
 DROP TABLE IF EXISTS chair_locations_minus_distance;
