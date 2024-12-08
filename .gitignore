@@ -9,3 +9,11 @@
 /home/isucon/*
 !/home/isucon/.bashrc.backup
 
+# /home/isucon/.bashrc
+/*
+!/home
+/home/*
+!/home/isucon
+/home/isucon/*
+!/home/isucon/.bashrc
+
