@@ -4,7 +4,6 @@ import (
 	crand "crypto/rand"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -48,7 +47,6 @@ func GetChair(key string) *Chair {
 
 func main() {
 	mux := setup()
-	slog.Info("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
 }
 
@@ -254,8 +252,6 @@ func writeError(w http.ResponseWriter, statusCode int, err error) {
 		return
 	}
 	w.Write(buf)
-
-	slog.Error("error response wrote", err)
 }
 
 func secureRandomStr(b int) string {
