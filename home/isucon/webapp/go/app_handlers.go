@@ -671,7 +671,7 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
-	ticker := time.NewTicker(time.Second * 1)
+	ticker := time.NewTicker(time.Second * 10)
 
 	v, _ := userNotificationQueue.LoadOrStore(user.ID, make(chan (*appGetNotificationResponseData)))
 	queue := v.(chan (*appGetNotificationResponseData))
