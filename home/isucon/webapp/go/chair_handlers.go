@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -180,13 +181,14 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ride := &Ride{}
+	var status string
 	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC LIMIT 1`, chair.ID); err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
 	} else {
-		status, err := getLatestRideStatus(ctx, tx, ride.ID)
+		status, err = getLatestRideStatus(ctx, tx, ride.ID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -212,6 +214,54 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+
+	// ユーザー通知
+	go func() {
+		v, ok := userNotificationQueue.Load(ride.UserID)
+		if !ok {
+			return
+		}
+
+		ctx := context.Background()
+
+		tx, err := db.Beginx()
+		defer tx.Rollback()
+
+		fare, err := calculateDiscountedFare(ctx, tx, ride.UserID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
+		if err != nil {
+			slog.Warn("failed to calculate dscounted fare", "error", err, "user_id", ride.UserID, "ride", ride)
+			return
+		}
+
+		stats, err := getChairStats(ctx, tx, chair.ID)
+		if err != nil {
+			slog.Warn("failed to calculate dscounted fare", "error", err, "chair_id", chair.ID)
+			return
+		}
+
+		queue := v.(chan (*appGetNotificationResponseData))
+		queue <- &appGetNotificationResponseData{
+			RideID: ride.ID,
+			PickupCoordinate: Coordinate{
+				Latitude:  ride.PickupLatitude,
+				Longitude: ride.PickupLongitude,
+			},
+			DestinationCoordinate: Coordinate{
+				Latitude:  ride.DestinationLatitude,
+				Longitude: ride.DestinationLongitude,
+			},
+			Fare:   fare,
+			Status: status,
+			Chair: &appGetNotificationResponseChair{
+				ID:    chair.ID,
+				Name:  chair.Name,
+				Model: chair.Model,
+				Stats: stats,
+			},
+			CreatedAt: ride.CreatedAt.UnixMilli(),
+			UpdateAt:  ride.UpdatedAt.UnixMilli(),
+		}
+	}()
 
 	writeJSON(w, http.StatusOK, &chairPostCoordinateResponse{
 		RecordedAt: location.CreatedAt.UnixMilli(),

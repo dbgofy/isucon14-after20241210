@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -654,6 +655,10 @@ type appGetNotificationResponseChairStats struct {
 	TotalEvaluationAvg float64 `json:"total_evaluation_avg"`
 }
 
+// key: user_id
+// value: chan(appGetNotificationResponseData)
+var userNotificationQueue sync.Map
+
 func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := ctx.Value("user").(*User)
@@ -667,8 +672,23 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ticker := time.NewTicker(time.Second * 1)
+
+	v, _ := userNotificationQueue.LoadOrStore(user.ID, make(chan (*appGetNotificationResponseData)))
+	queue := v.(chan (*appGetNotificationResponseData))
+
 	for {
 		select {
+		case response := <-queue:
+			w.Write([]byte("data: "))
+			if err := json.NewEncoder(w).Encode(response); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				slog.Error("failed to write response to http writer", "error", err, "response", response)
+				return
+			}
+			w.Write([]byte("\n\n"))
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
 		case <-ticker.C:
 			tx, err := db.Beginx()
 			if err != nil {
