@@ -218,7 +218,7 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ユーザー通知
-	go func() {
+	func() {
 		v, ok := userNotificationQueue.Load(ride.UserID)
 		if !ok {
 			return
@@ -477,7 +477,7 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ユーザー通知
-	go func() {
+	func() {
 		v, ok := userNotificationQueue.Load(ride.UserID)
 		if !ok {
 			return
