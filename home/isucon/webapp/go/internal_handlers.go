@@ -32,7 +32,7 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 		notCompletedChairIDsSet[id] = struct{}{}
 	}
 	notCompletedChairIDs = []string{}
-	if err := tx.SelectContext(ctx, &notCompletedChairIDs, `SELECT chair_id FROM rides where updated_at > NOW(6) - INTERVAL 3.5 SECOND AND chair_id IS NOT NULL`); err != nil {
+	if err := tx.SelectContext(ctx, &notCompletedChairIDs, `SELECT chair_id FROM rides where updated_at > NOW(6) - INTERVAL 1.5 SECOND AND chair_id IS NOT NULL`); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
