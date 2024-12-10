@@ -1,4 +1,5 @@
 HOSTNAME := $(shell hostname)
+include /root/.env
 
 .PHONY: all
 all: git ssh commit /home/isucon/.bashrc /files/hosts/$(HOSTNAME)
@@ -204,12 +205,12 @@ logrotate:
 
 /var/log/mysql/mysqldumpslow.log: /var/log/mysql/mysql-slow.log
 	mysqldumpslow -s t $< > $@
-	hostname | DISCORD_WEBHOOK_URL="$SLOWLOG_WEBHOOK_URL" /usr/local/bin/discord-cat -f $@
+	hostname | DISCORD_WEBHOOK_URL=$(SLOWLOG_WEBHOOK_URL) /usr/local/bin/discord-cat -f $@
 	test -s $< && cp -f $< $<.bak || true
 	> $<
 
 /var/log/nginx/kataribe.log: /var/log/nginx/access.log
 	kataribe -f /kataribe.toml < $< > $@
-	hostname | DISCORD_WEBHOOK_URL="$KATARIBE_WEBHOOK_URL" /usr/local/bin/discord-cat -f $@
+	hostname | DISCORD_WEBHOOK_URL=$(KATARIBE_WEBHOOK_URL) /usr/local/bin/discord-cat -f $@
 	test -s $< && cp -f $< $<.bak || true
 	> $<
