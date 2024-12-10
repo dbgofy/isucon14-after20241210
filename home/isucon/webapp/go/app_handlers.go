@@ -669,11 +669,16 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
-		defer tx.Rollback()
+		defer func() {
+			if tx != nil {
+				tx.Rollback()
+			}
+		}()
 
 		ride := &Ride{}
 		if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, user.ID); err != nil {
 			tx.Rollback()
+			tx = nil
 			if errors.Is(err, sql.ErrNoRows) {
 				continue
 			}
@@ -685,6 +690,7 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 		status := ""
 		if err := tx.GetContext(ctx, &yetSentRideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ? AND app_sent_at IS NULL ORDER BY created_at ASC LIMIT 1`, ride.ID); err != nil {
 			tx.Rollback()
+			tx = nil
 			if errors.Is(err, sql.ErrNoRows) {
 				status, err = getLatestRideStatus(ctx, tx, ride.ID)
 				if err != nil {
@@ -749,6 +755,7 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
+		tx = nil
 
 		w.Write([]byte("data: "))
 		if err := json.NewEncoder(w).Encode(response); err != nil {
@@ -759,7 +766,6 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
-
 	}
 }
 
