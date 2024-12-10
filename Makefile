@@ -1,4 +1,5 @@
 HOSTNAME := $(shell hostname)
+include /root/.env
 
 .PHONY: all
 all: git ssh commit /home/isucon/.bashrc /files/hosts/$(HOSTNAME)
