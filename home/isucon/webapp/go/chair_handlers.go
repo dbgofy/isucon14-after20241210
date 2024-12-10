@@ -319,6 +319,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Write(buf)
 		w.Write([]byte("\n"))
+		time.Sleep(1 * time.Second)
 	}
 }
 
