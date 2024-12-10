@@ -661,6 +661,7 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}
