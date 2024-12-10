@@ -261,7 +261,7 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 			CreatedAt: ride.CreatedAt.UnixMilli(),
 			UpdateAt:  ride.UpdatedAt.UnixMilli(),
 		}
-		slog.Info("notifified", "ride_id", ride.ID, "user_id", ride.UserID)
+		slog.Info("push to userNotificationQueue", "ride_id", ride.ID, "user_id", ride.UserID)
 	}()
 
 	writeJSON(w, http.StatusOK, &chairPostCoordinateResponse{

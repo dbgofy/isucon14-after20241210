@@ -679,6 +679,7 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case response := <-queue:
+			slog.Info("pop from userNotificationQueue", "response", response)
 			w.Write([]byte("data: "))
 			if err := json.NewEncoder(w).Encode(response); err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
