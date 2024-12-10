@@ -664,6 +664,11 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}
+	if _, err := w.Write([]byte("data: \n\n")); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		slog.Error("failed to write dummy data", "error", err)
+		return
+	}
 
 	for {
 		time.Sleep(time.Second * 1)
