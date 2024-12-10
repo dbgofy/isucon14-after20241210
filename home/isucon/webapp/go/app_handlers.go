@@ -671,7 +671,7 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
-	ticker := time.NewTicker(time.Second * 10)
+	ticker := time.NewTicker(time.Second * 1)
 
 	first := make(chan (struct{}), 1)
 	first <- struct{}{}
