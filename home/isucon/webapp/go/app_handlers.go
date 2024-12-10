@@ -676,8 +676,7 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	first := make(chan (struct{}), 1)
 	first <- struct{}{}
 
-	v, _ := userNotificationQueue.LoadOrStore(user.ID, make(chan (*appGetNotificationResponseData)))
-	queue := v.(chan (*appGetNotificationResponseData))
+	var queue chan (*appGetNotificationResponseData)
 
 	for {
 		select {
@@ -806,6 +805,9 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
 			}
+
+			v, _ := userNotificationQueue.LoadOrStore(user.ID, make(chan (*appGetNotificationResponseData)))
+			queue = v.(chan (*appGetNotificationResponseData))
 		case <-ticker.C:
 			tx, err := db.Beginx()
 			if err != nil {
