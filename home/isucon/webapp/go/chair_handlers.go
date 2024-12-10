@@ -317,6 +317,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		w.Write([]byte("data: "))
 		w.Write(buf)
 		w.Write([]byte("\n"))
 		time.Sleep(1 * time.Second)
