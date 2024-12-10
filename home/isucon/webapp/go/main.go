@@ -273,8 +273,6 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		UpdateChair(&chair, &chair.UpdatedAt)
 	}
 
-	writeChairSession = sync.Map{}
-
 	writeJSON(w, http.StatusOK, postInitializeResponse{Language: "go"})
 }
 
