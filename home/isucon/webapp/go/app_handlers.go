@@ -435,7 +435,7 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ユーザー通知
-	{
+	go func() {
 		v, ok := userNotificationQueue.Load(ride.UserID)
 		if !ok {
 			return
@@ -476,7 +476,7 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 			UpdateAt:  ride.UpdatedAt.UnixMilli(),
 		}
 		slog.Info("push to userNotificationQueue", "ride_id", ride.ID, "user_id", ride.UserID)
-	}
+	}()
 
 	writeJSON(w, http.StatusAccepted, &appPostRidesResponse{
 		RideID: rideID,
@@ -672,7 +672,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ユーザー通知
-	{
+	go func() {
 		v, ok := userNotificationQueue.Load(ride.UserID)
 		if !ok {
 			return
@@ -696,7 +696,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 			UpdateAt:  ride.UpdatedAt.UnixMilli(),
 		}
 		slog.Info("push to userNotificationQueue", "ride_id", ride.ID, "user_id", ride.UserID)
-	}
+	}()
 
 	writeJSON(w, http.StatusOK, &appPostRideEvaluationResponse{
 		CompletedAt: ride.UpdatedAt.UnixMilli(),
