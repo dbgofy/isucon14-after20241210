@@ -673,6 +673,9 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 
 	ticker := time.NewTicker(time.Second * 10)
 
+	first := make(chan (struct{}), 1)
+	first <- struct{}{}
+
 	v, _ := userNotificationQueue.LoadOrStore(user.ID, make(chan (*appGetNotificationResponseData)))
 	queue := v.(chan (*appGetNotificationResponseData))
 
@@ -683,6 +686,119 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("data: "))
 			if err := json.NewEncoder(w).Encode(response); err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
+				slog.Error("failed to write response to http writer", "error", err, "response", response)
+				return
+			}
+			w.Write([]byte("\n\n"))
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+		case <-first:
+			tx, err := db.Beginx()
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				slog.Error("failed to begin tx", "error", err)
+				return
+			}
+			defer func() {
+				if tx != nil {
+					tx.Rollback()
+				}
+			}()
+
+			ride := &Ride{}
+			if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, user.ID); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					tx.Rollback()
+					tx = nil
+					slog.Info("no rides", "user_id", user.ID)
+					continue
+				}
+				writeError(w, http.StatusInternalServerError, err)
+				slog.Error("failed to get rides", "error", err, "user_id", user.ID)
+				return
+			}
+
+			yetSentRideStatus := RideStatus{}
+			status := ""
+			if err := tx.GetContext(ctx, &yetSentRideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ? AND app_sent_at IS NULL ORDER BY created_at ASC LIMIT 1`, ride.ID); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					slog.Info("no ride_status", "ride_id", ride.ID)
+					status, err = getLatestRideStatus(ctx, tx, ride.ID)
+					if err != nil {
+						writeError(w, http.StatusInternalServerError, err)
+						slog.Info("failed to get latest ride status", "ride_id", ride.ID, "error", err)
+						return
+					}
+				} else {
+					writeError(w, http.StatusInternalServerError, err)
+					slog.Error("failed to get rides", "error", err, "ride_id", ride.ID)
+					return
+				}
+			} else {
+				status = yetSentRideStatus.Status
+			}
+
+			fare, err := calculateDiscountedFare(ctx, tx, user.ID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				slog.Error("failed to calculate discounted fare", "error", err, "user_id", user.ID, "ride", ride)
+				return
+			}
+
+			response := appGetNotificationResponseData{
+				RideID: ride.ID,
+				PickupCoordinate: Coordinate{
+					Latitude:  ride.PickupLatitude,
+					Longitude: ride.PickupLongitude,
+				},
+				DestinationCoordinate: Coordinate{
+					Latitude:  ride.DestinationLatitude,
+					Longitude: ride.DestinationLongitude,
+				},
+				Fare:      fare,
+				Status:    status,
+				CreatedAt: ride.CreatedAt.UnixMilli(),
+				UpdateAt:  ride.UpdatedAt.UnixMilli(),
+			}
+
+			if ride.ChairID.Valid {
+				chair := GetChair(ride.ChairID.String)
+
+				stats, err := getChairStats(ctx, tx, chair.ID)
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, err)
+					slog.Error("failed to get chair stats", "error", err, "chair_id", chair.ID)
+					return
+				}
+
+				response.Chair = &appGetNotificationResponseChair{
+					ID:    chair.ID,
+					Name:  chair.Name,
+					Model: chair.Model,
+					Stats: stats,
+				}
+			}
+
+			if yetSentRideStatus.ID != "" {
+				_, err := tx.ExecContext(ctx, `UPDATE ride_statuses SET app_sent_at = CURRENT_TIMESTAMP(6) WHERE id = ?`, yetSentRideStatus.ID)
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, err)
+					slog.Error("failed to update ride_status.app_sent_at", "error", err, "ride_id", yetSentRideStatus.ID)
+					return
+				}
+			}
+
+			if err := tx.Commit(); err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				slog.Error("failed to commit", "error", err)
+				return
+			}
+			tx = nil
+
+			w.Write([]byte("data: "))
+			if err := json.NewEncoder(w).Encode(response); err != nil {
+				writeError(w, http.StatusInternalServerError, err)
 				slog.Error("failed to write response to http writer", "error", err, "response", response)
 				return
 			}
