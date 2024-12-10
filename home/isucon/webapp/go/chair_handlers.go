@@ -440,6 +440,7 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var status string
 	switch req.Status {
 	// Acknowledge the ride
 	case "ENROUTE":
@@ -447,6 +448,7 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
+		status = "ENROUTE"
 	// After Picking up user
 	case "CARRYING":
 		status, err := getLatestRideStatus(ctx, tx, ride.ID)
@@ -462,6 +464,7 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
+		status = "CARRYING"
 	default:
 		writeError(w, http.StatusBadRequest, errors.New("invalid status"))
 	}
@@ -470,6 +473,55 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+
+	// ユーザー通知
+	go func() {
+		v, ok := userNotificationQueue.Load(ride.UserID)
+		if !ok {
+			return
+		}
+
+		ctx := context.Background()
+
+		tx, err := db.Beginx()
+		defer tx.Rollback()
+
+		fare, err := calculateDiscountedFare(ctx, tx, ride.UserID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
+		if err != nil {
+			slog.Warn("failed to calculate dscounted fare", "error", err, "user_id", ride.UserID, "ride", ride)
+			return
+		}
+
+		stats, err := getChairStats(ctx, tx, chair.ID)
+		if err != nil {
+			slog.Warn("failed to calculate dscounted fare", "error", err, "chair_id", chair.ID)
+			return
+		}
+
+		queue := v.(chan (*appGetNotificationResponseData))
+		queue <- &appGetNotificationResponseData{
+			RideID: ride.ID,
+			PickupCoordinate: Coordinate{
+				Latitude:  ride.PickupLatitude,
+				Longitude: ride.PickupLongitude,
+			},
+			DestinationCoordinate: Coordinate{
+				Latitude:  ride.DestinationLatitude,
+				Longitude: ride.DestinationLongitude,
+			},
+			Fare:   fare,
+			Status: status,
+			Chair: &appGetNotificationResponseChair{
+				ID:    chair.ID,
+				Name:  chair.Name,
+				Model: chair.Model,
+				Stats: stats,
+			},
+			CreatedAt: ride.CreatedAt.UnixMilli(),
+			UpdateAt:  ride.UpdatedAt.UnixMilli(),
+		}
+		slog.Info("push to userNotificationQueue", "ride_id", ride.ID, "user_id", ride.UserID)
+	}()
 
 	w.WriteHeader(http.StatusNoContent)
 }

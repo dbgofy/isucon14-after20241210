@@ -434,6 +434,33 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ユーザー通知
+	go func() {
+		v, ok := userNotificationQueue.Load(ride.UserID)
+		if !ok {
+			return
+		}
+
+		queue := v.(chan (*appGetNotificationResponseData))
+		queue <- &appGetNotificationResponseData{
+			RideID: ride.ID,
+			PickupCoordinate: Coordinate{
+				Latitude:  ride.PickupLatitude,
+				Longitude: ride.PickupLongitude,
+			},
+			DestinationCoordinate: Coordinate{
+				Latitude:  ride.DestinationLatitude,
+				Longitude: ride.DestinationLongitude,
+			},
+			Fare:      fare,
+			Status:    "MATCHING",
+			Chair:     nil,
+			CreatedAt: ride.CreatedAt.UnixMilli(),
+			UpdateAt:  ride.UpdatedAt.UnixMilli(),
+		}
+		slog.Info("push to userNotificationQueue", "ride_id", ride.ID, "user_id", ride.UserID)
+	}()
+
 	writeJSON(w, http.StatusAccepted, &appPostRidesResponse{
 		RideID: rideID,
 		Fare:   fare,
