@@ -239,6 +239,8 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chair := ctx.Value("chair").(*Chair)
 	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
 
 	for {
 		tx, err := db.Beginx()
@@ -253,10 +255,8 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 
 		if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC LIMIT 1`, chair.ID); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				writeJSON(w, http.StatusOK, &chairGetNotificationResponse{
-					RetryAfterMs: RetryAfterMs,
-				})
-				return
+				time.Sleep(1 * time.Second)
+				continue
 			}
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -320,6 +320,9 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("data: "))
 		w.Write(buf)
 		w.Write([]byte("\n"))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
 		time.Sleep(1 * time.Second)
 	}
 }
