@@ -218,7 +218,7 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ユーザー通知
-	go func() {
+	{
 		v, ok := userNotificationQueue.Load(ride.UserID)
 		if !ok {
 			return
@@ -264,7 +264,7 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 			UpdateAt:  ride.UpdatedAt.UnixMilli(),
 		}
 		slog.Info("push to userNotificationQueue", "ride_id", ride.ID, "user_id", ride.UserID)
-	}()
+	}
 
 	writeJSON(w, http.StatusOK, &chairPostCoordinateResponse{
 		RecordedAt: location.CreatedAt.UnixMilli(),
@@ -477,7 +477,7 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ユーザー通知
-	go func() {
+	{
 		v, ok := userNotificationQueue.Load(ride.UserID)
 		if !ok {
 			return
@@ -523,7 +523,7 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 			UpdateAt:  ride.UpdatedAt.UnixMilli(),
 		}
 		slog.Info("push to userNotificationQueue", "ride_id", ride.ID, "user_id", ride.UserID)
-	}()
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
