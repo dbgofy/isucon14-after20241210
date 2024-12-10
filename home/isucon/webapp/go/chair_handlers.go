@@ -248,12 +248,12 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
-		defer tx.Rollback()
 		ride := &Ride{}
 		yetSentRideStatus := RideStatus{}
 		status := ""
 
 		if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC LIMIT 1`, chair.ID); err != nil {
+			tx.Rollback()
 			if errors.Is(err, sql.ErrNoRows) {
 				time.Sleep(1 * time.Second)
 				continue
@@ -263,6 +263,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := tx.GetContext(ctx, &yetSentRideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ? AND chair_sent_at IS NULL ORDER BY created_at ASC LIMIT 1`, ride.ID); err != nil {
+			tx.Rollback()
 			if errors.Is(err, sql.ErrNoRows) {
 				status, err = getLatestRideStatus(ctx, tx, ride.ID)
 				if err != nil {
@@ -280,6 +281,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 		user := &User{}
 		err = tx.GetContext(ctx, user, "SELECT * FROM users WHERE id = ? FOR SHARE", ride.UserID)
 		if err != nil {
+			tx.Rollback()
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
@@ -287,12 +289,14 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 		if yetSentRideStatus.ID != "" {
 			_, err := tx.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = CURRENT_TIMESTAMP(6) WHERE id = ?`, yetSentRideStatus.ID)
 			if err != nil {
+				tx.Rollback()
 				writeError(w, http.StatusInternalServerError, err)
 				return
 			}
 		}
 
 		if err := tx.Commit(); err != nil {
+			tx.Rollback()
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
@@ -314,6 +318,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 			Status: status,
 		})
 		if err != nil {
+			tx.Rollback()
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
