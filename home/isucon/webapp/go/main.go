@@ -4,6 +4,7 @@ import (
 	crand "crypto/rand"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -83,6 +84,7 @@ func ListChairLocations(key string) (cls []*ChairLocation) {
 
 func main() {
 	mux := setup()
+	slog.Info("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
 }
 
@@ -195,6 +197,9 @@ func setup() http.Handler {
 		mux.HandleFunc("GET /api/internal/matching", internalGetMatching)
 	}
 
+	// pprof
+	mux.Mount("/debug", middleware.Profiler())
+
 	return mux
 }
 
@@ -301,6 +306,8 @@ func writeError(w http.ResponseWriter, statusCode int, err error) {
 		return
 	}
 	w.Write(buf)
+
+	slog.Error("error response wrote", err)
 }
 
 func secureRandomStr(b int) string {
