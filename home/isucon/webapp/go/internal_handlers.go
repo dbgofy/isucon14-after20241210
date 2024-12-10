@@ -2,7 +2,6 @@ package main
 
 import (
 	"net/http"
-	"slices"
 )
 
 // このAPIをインスタンス内から一定間隔で叩かせることで、椅子とライドをマッチングさせる
@@ -45,29 +44,18 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	candidateChairs := make([]Chair, 0, len(chairs))
+	candidateChairIDs := []string{}
 	for _, chair := range chairs {
 		if _, ok := notCompletedChairIDsSet[chair.ID]; !ok {
-			candidateChairs = append(candidateChairs, chair)
+			candidateChairIDs = append(candidateChairIDs, chair.ID)
 		}
 	}
 
-	for _, ride := range rides {
-		if len(candidateChairs) == 0 {
+	for index, ride := range rides {
+		if len(candidateChairIDs) == index {
 			break
 		}
-		selectedChair := candidateChairs[0]
-		selectedIndex := 0
-		for index, chair := range candidateChairs {
-			selectedChairLocation := GetChairLocation(selectedChair.ID)
-			candidateChairLocation := GetChairLocation(chair.ID)
-			if abs(selectedChairLocation.Latitude-ride.PickupLatitude)+abs(selectedChairLocation.Longitude-ride.PickupLongitude) > abs(candidateChairLocation.Latitude-ride.PickupLatitude)+abs(candidateChairLocation.Longitude-ride.PickupLongitude) {
-				selectedChair = chair
-				selectedIndex = index
-			}
-		}
-		candidateChairs = slices.Delete(candidateChairs, selectedIndex, selectedIndex+1)
-		if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ? AND chair_id IS NULL", selectedChair.ID, ride.ID); err != nil {
+		if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ? AND chair_id IS NULL", candidateChairIDs[index], ride.ID); err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
