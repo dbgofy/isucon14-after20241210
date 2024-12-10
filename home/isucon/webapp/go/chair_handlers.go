@@ -319,7 +319,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Write([]byte("data: "))
 		w.Write(buf)
-		w.Write([]byte("\n"))
+		w.Write([]byte("\n\n"))
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
