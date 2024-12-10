@@ -670,7 +670,6 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-ticker.C:
-
 			tx, err := db.Beginx()
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, err)
@@ -685,9 +684,9 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 
 			ride := &Ride{}
 			if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, user.ID); err != nil {
-				tx.Rollback()
-				tx = nil
 				if errors.Is(err, sql.ErrNoRows) {
+					tx.Rollback()
+					tx = nil
 					slog.Info("no rides", "user_id", user.ID)
 					continue
 				}
@@ -703,14 +702,13 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 					slog.Info("no ride_status", "ride_id", ride.ID)
 					status, err = getLatestRideStatus(ctx, tx, ride.ID)
 					if err != nil {
-						tx.Rollback()
-						tx = nil
+						writeError(w, http.StatusInternalServerError, err)
 						slog.Info("failed to get latest ride status", "ride_id", ride.ID, "error", err)
-						continue
+						return
 					}
 				} else {
 					writeError(w, http.StatusInternalServerError, err)
-					slog.Error("failed to get rides", "error", err, "user_id", user.ID)
+					slog.Error("failed to get rides", "error", err, "ride_id", ride.ID)
 					return
 				}
 			} else {
