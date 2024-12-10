@@ -877,7 +877,7 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 				f.Flush()
 			}
 
-			v, _ := userNotificationQueue.LoadOrStore(user.ID, make(chan (*appGetNotificationResponseData)))
+			v, _ := userNotificationQueue.LoadOrStore(user.ID, make(chan (*appGetNotificationResponseData), 100))
 			queue = v.(chan (*appGetNotificationResponseData))
 		case <-ticker.C:
 			tx, err := db.Beginx()
