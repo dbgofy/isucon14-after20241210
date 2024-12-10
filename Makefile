@@ -204,12 +204,12 @@ logrotate:
 
 /var/log/mysql/mysqldumpslow.log: /var/log/mysql/mysql-slow.log
 	mysqldumpslow -s t $< > $@
-	hostname | DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/1314983570426695762/ilH7nAPrp2xERAMrT6MiYSe0-SLpLdyp6ltS5dCDc5cPuczHgSEtKLuTpxVTRBEkCZkd /usr/local/bin/discord-cat -f $@
+	hostname | DISCORD_WEBHOOK_URL="$SLOWLOG_WEBHOOK_URL" /usr/local/bin/discord-cat -f $@
 	test -s $< && cp -f $< $<.bak || true
 	> $<
 
 /var/log/nginx/kataribe.log: /var/log/nginx/access.log
 	kataribe -f /kataribe.toml < $< > $@
-	hostname | DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/1314983768578326579/y2Pzby4jafTgoRvwehVSB9ivrZgrHpwbuFvBxeCFK1G2T9sZJHl9n6CXp5uLA0Y7J2Ae /usr/local/bin/discord-cat -f $@
+	hostname | DISCORD_WEBHOOK_URL="$KATARIBE_WEBHOOK_URL" /usr/local/bin/discord-cat -f $@
 	test -s $< && cp -f $< $<.bak || true
 	> $<
