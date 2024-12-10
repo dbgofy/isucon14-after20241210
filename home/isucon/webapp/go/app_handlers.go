@@ -630,11 +630,6 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-type appGetNotificationResponse struct {
-	Data         *appGetNotificationResponseData `json:"data"`
-	RetryAfterMs int                             `json:"retry_after_ms"`
-}
-
 type appGetNotificationResponseData struct {
 	RideID                string                           `json:"ride_id"`
 	PickupCoordinate      Coordinate                       `json:"pickup_coordinate"`
@@ -667,6 +662,8 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 
 	for {
+		time.Sleep(time.Second * 1)
+
 		tx, err := db.Beginx()
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
@@ -676,11 +673,9 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 
 		ride := &Ride{}
 		if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, user.ID); err != nil {
+			tx.Rollback()
 			if errors.Is(err, sql.ErrNoRows) {
-				writeJSON(w, http.StatusOK, &appGetNotificationResponse{
-					RetryAfterMs: RetryAfterMs,
-				})
-				return
+				continue
 			}
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -689,11 +684,11 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 		yetSentRideStatus := RideStatus{}
 		status := ""
 		if err := tx.GetContext(ctx, &yetSentRideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ? AND app_sent_at IS NULL ORDER BY created_at ASC LIMIT 1`, ride.ID); err != nil {
+			tx.Rollback()
 			if errors.Is(err, sql.ErrNoRows) {
 				status, err = getLatestRideStatus(ctx, tx, ride.ID)
 				if err != nil {
-					writeError(w, http.StatusInternalServerError, err)
-					return
+					continue
 				}
 			} else {
 				writeError(w, http.StatusInternalServerError, err)
@@ -709,23 +704,20 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		response := &appGetNotificationResponse{
-			Data: &appGetNotificationResponseData{
-				RideID: ride.ID,
-				PickupCoordinate: Coordinate{
-					Latitude:  ride.PickupLatitude,
-					Longitude: ride.PickupLongitude,
-				},
-				DestinationCoordinate: Coordinate{
-					Latitude:  ride.DestinationLatitude,
-					Longitude: ride.DestinationLongitude,
-				},
-				Fare:      fare,
-				Status:    status,
-				CreatedAt: ride.CreatedAt.UnixMilli(),
-				UpdateAt:  ride.UpdatedAt.UnixMilli(),
+		response := appGetNotificationResponseData{
+			RideID: ride.ID,
+			PickupCoordinate: Coordinate{
+				Latitude:  ride.PickupLatitude,
+				Longitude: ride.PickupLongitude,
 			},
-			RetryAfterMs: RetryAfterMs,
+			DestinationCoordinate: Coordinate{
+				Latitude:  ride.DestinationLatitude,
+				Longitude: ride.DestinationLongitude,
+			},
+			Fare:      fare,
+			Status:    status,
+			CreatedAt: ride.CreatedAt.UnixMilli(),
+			UpdateAt:  ride.UpdatedAt.UnixMilli(),
 		}
 
 		if ride.ChairID.Valid {
@@ -737,7 +729,7 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			response.Data.Chair = &appGetNotificationResponseChair{
+			response.Chair = &appGetNotificationResponseChair{
 				ID:    chair.ID,
 				Name:  chair.Name,
 				Model: chair.Model,
@@ -768,7 +760,6 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 			f.Flush()
 		}
 
-		time.Sleep(1 * time.Second)
 	}
 }
 
