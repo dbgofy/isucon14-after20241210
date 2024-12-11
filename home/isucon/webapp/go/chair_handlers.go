@@ -148,7 +148,7 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	}
 	InsertChairLocation(&cl)
 	go func() {
-		//time.Sleep(90 * time.Second)
+		time.Sleep(90 * time.Second)
 		db.ExecContext(
 			ctx,
 			`INSERT INTO chair_locations (id, chair_id, latitude, longitude, created_at) VALUES (?, ?, ?, ?, ?)`,
