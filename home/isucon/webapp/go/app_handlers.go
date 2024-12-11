@@ -440,42 +440,8 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-
-		ctx := context.Background()
-
-		tx, err := db.Beginx()
-		defer tx.Rollback()
-
-		chair := GetChair(ride.ChairID.String)
-		stats, err := getChairStats(ctx, tx, chair.ID)
-		if err != nil {
-			slog.Warn("failed to calculate dscounted fare", "error", err, "chair_id", chair.ID)
-			return
-		}
-
-		queue := v.(chan (*appGetNotificationResponseData))
-		queue <- &appGetNotificationResponseData{
-			RideID: ride.ID,
-			PickupCoordinate: Coordinate{
-				Latitude:  ride.PickupLatitude,
-				Longitude: ride.PickupLongitude,
-			},
-			DestinationCoordinate: Coordinate{
-				Latitude:  ride.DestinationLatitude,
-				Longitude: ride.DestinationLongitude,
-			},
-			Fare:   fare,
-			Status: "MATCHING",
-			Chair: &appGetNotificationResponseChair{
-				ID:    chair.ID,
-				Name:  chair.Name,
-				Model: chair.Model,
-				Stats: stats,
-			},
-			CreatedAt: ride.CreatedAt.UnixMilli(),
-			UpdateAt:  ride.UpdatedAt.UnixMilli(),
-		}
-		slog.Info("push to userNotificationQueue", "ride_id", ride.ID, "user_id", ride.UserID)
+		queue := v.(chan (struct{}))
+		queue <- struct{}{}
 	}()
 
 	writeJSON(w, http.StatusAccepted, &appPostRidesResponse{
@@ -677,25 +643,8 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-
-		queue := v.(chan (*appGetNotificationResponseData))
-		queue <- &appGetNotificationResponseData{
-			RideID: ride.ID,
-			PickupCoordinate: Coordinate{
-				Latitude:  ride.PickupLatitude,
-				Longitude: ride.PickupLongitude,
-			},
-			DestinationCoordinate: Coordinate{
-				Latitude:  ride.DestinationLatitude,
-				Longitude: ride.DestinationLongitude,
-			},
-			Fare:      fare,
-			Status:    "COMPLETED",
-			Chair:     nil,
-			CreatedAt: ride.CreatedAt.UnixMilli(),
-			UpdateAt:  ride.UpdatedAt.UnixMilli(),
-		}
-		slog.Info("push to userNotificationQueue", "ride_id", ride.ID, "user_id", ride.UserID)
+		queue := v.(chan (struct{}))
+		queue <- struct{}{}
 	}()
 
 	writeJSON(w, http.StatusOK, &appPostRideEvaluationResponse{
@@ -727,7 +676,7 @@ type appGetNotificationResponseChairStats struct {
 }
 
 // key: user_id
-// value: chan(appGetNotificationResponseData)
+// value: chan(struct{})
 var userNotificationQueue sync.Map
 
 func appGetNotification(w http.ResponseWriter, r *http.Request) {
@@ -743,9 +692,9 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		ticker = time.NewTicker(time.Second * 10)
+		ticker = time.NewTicker(time.Second * 1)
 		first  = make(chan (struct{}), 1)
-		queue  chan (*appGetNotificationResponseData)
+		queue  chan (struct{})
 	)
 
 	first <- struct{}{}
@@ -753,8 +702,11 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-queue:
+			slog.Info("notify to user", "select", "queue")
 		case <-first:
+			slog.Info("notify to user", "select", "first")
 		case <-ticker.C:
+			slog.Info("notify to user", "select", "ticker")
 		case <-ctx.Done():
 			break
 		}
