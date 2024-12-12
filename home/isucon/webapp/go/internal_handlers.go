@@ -78,7 +78,10 @@ func matching() {
 				}
 				chairLocations := make([]*ChairLocation, 0, len(chairIDs))
 				for _, cID := range chairIDs {
-					chairLocations = append(chairLocations, GetChairLocation(cID))
+					l := GetChairLocation(cID)
+					if l != nil {
+						chairLocations = append(chairLocations)
+					}
 				}
 				for _, r := range rides {
 					ride = r
@@ -92,7 +95,7 @@ func matching() {
 						}
 					}
 
-					err := matchingComp(ctx, ride, chairID)
+					err := matchingComp(ctx, ride, chairLocation.ChairID)
 					if err != nil {
 						slog.Error("failed to matching", "error", err)
 						break
