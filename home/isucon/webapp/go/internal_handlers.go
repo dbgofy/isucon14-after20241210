@@ -75,6 +75,7 @@ func matching() {
 				for _, cID := range chairIDs {
 					l := GetChairLocation(cID)
 					if l == nil {
+						matchingChannel <- cID
 						slog.Error("fail GetChairLocation", "chairID", cID)
 						continue
 					}
