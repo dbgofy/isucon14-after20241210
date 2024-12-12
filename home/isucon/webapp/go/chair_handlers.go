@@ -276,6 +276,7 @@ func sendChairGetNotificationChannel(ctx context.Context, status string, ride *R
 		return nil
 	}
 	if user == nil {
+		user = &User{}
 		err := db.GetContext(ctx, user, "SELECT * FROM users WHERE id = ?", ride.UserID)
 		if err != nil {
 			return fmt.Errorf("failed to get user: %w", err)
