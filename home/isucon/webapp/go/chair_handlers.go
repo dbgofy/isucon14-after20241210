@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -267,6 +268,7 @@ type chairGetNotificationResponseData struct {
 var chairGetNotificationChannel = sync.Map{}
 
 func sendChairGetNotificationChannel(ctx context.Context, status string, ride *Ride, user *User) error {
+	spew.Dump(ride)
 	if !ride.ChairID.Valid {
 		return fmt.Errorf("ride.ChairID is not valid")
 	}
@@ -418,7 +420,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 			_, err := db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = CURRENT_TIMESTAMP(6) WHERE ride_id = ? AND status = ?`, response.RideID, response.Status)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, err)
-				slog.Error("failed to update ride_status.app_sent_at", "error", err, "ride_id", response.RideID)
+				slog.Error("failed to update ride_status.chair_sent_at", "error", err, "ride_id", response.RideID)
 				return
 			}
 		case <-ctx.Done():
