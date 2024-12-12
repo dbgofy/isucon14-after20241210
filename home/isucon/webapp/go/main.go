@@ -273,6 +273,8 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		UpdateChair(&chair, &chair.UpdatedAt)
 	}
 
+	appGetNotificationChannel = sync.Map{}
+
 	writeJSON(w, http.StatusOK, postInitializeResponse{Language: "go"})
 }
 

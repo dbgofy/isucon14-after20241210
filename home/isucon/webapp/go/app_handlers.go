@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -428,6 +429,12 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = sendAppGetNotificationChannel(ctx, tx, "MATCHING", &ride)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
 	if err := tx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -571,6 +578,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	status = "COMPLETED"
 
 	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE id = ?`, rideID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -621,6 +629,12 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = sendAppGetNotificationChannel(ctx, tx, status, ride)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
 	if err := tx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -654,6 +668,67 @@ type appGetNotificationResponseChairStats struct {
 	TotalEvaluationAvg float64 `json:"total_evaluation_avg"`
 }
 
+// appGetNotificationChannel map[userID]chan appGetNotificationResponseData
+var appGetNotificationChannel = sync.Map{}
+
+func sendAppGetNotificationChannel(ctx context.Context, tx *sqlx.Tx, status string, ride *Ride) error {
+	c, ok := appGetNotificationChannel.Load(ride.ID)
+	if !ok {
+		return nil
+	}
+	channel, ok := c.(chan appGetNotificationResponseData)
+	if !ok {
+		return nil
+	}
+	var err error
+	var fare int
+	if tx != nil {
+		fare, err = calculateDiscountedFare(ctx, tx, ride.UserID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
+		if err != nil {
+			slog.Error("failed to calculate discounted fare", "error", err, "user_id", ride.UserID, "ride", ride)
+			return err
+		}
+	} else {
+		fare, err = calculateDiscountedFare2(ctx, db, ride.UserID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
+		if err != nil {
+			slog.Error("failed to calculate discounted fare", "error", err, "user_id", ride.UserID, "ride", ride)
+			return err
+		}
+	}
+	response := appGetNotificationResponseData{
+		RideID: ride.ID,
+		PickupCoordinate: Coordinate{
+			Latitude:  ride.PickupLatitude,
+			Longitude: ride.PickupLongitude,
+		},
+		DestinationCoordinate: Coordinate{
+			Latitude:  ride.DestinationLatitude,
+			Longitude: ride.DestinationLongitude,
+		},
+		Fare:      fare,
+		Status:    status,
+		CreatedAt: ride.CreatedAt.UnixMilli(),
+		UpdateAt:  ride.UpdatedAt.UnixMilli(),
+	}
+	if ride.ChairID.Valid {
+		chair := GetChair(ride.ChairID.String)
+
+		stats, err := getChairStats(ctx, db, chair.ID)
+		if err != nil {
+			return err
+		}
+
+		response.Chair = &appGetNotificationResponseChair{
+			ID:    chair.ID,
+			Name:  chair.Name,
+			Model: chair.Model,
+			Stats: stats,
+		}
+	}
+	channel <- response
+	return nil
+}
+
 func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := ctx.Value("user").(*User)
@@ -666,121 +741,69 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
-	ticker := time.NewTicker(time.Second * 1)
-	for {
-		select {
-		case <-ticker.C:
-			tx, err := db.Beginx()
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				slog.Error("failed to begin tx", "error", err)
-				return
-			}
-			defer func() {
-				if tx != nil {
-					tx.Rollback()
-				}
-			}()
-
-			ride := &Ride{}
-			if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, user.ID); err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					tx.Rollback()
-					tx = nil
-					slog.Info("no rides", "user_id", user.ID)
-					continue
-				}
-				writeError(w, http.StatusInternalServerError, err)
-				slog.Error("failed to get rides", "error", err, "user_id", user.ID)
-				return
-			}
-
-			yetSentRideStatus := RideStatus{}
-			status := ""
-			if err := tx.GetContext(ctx, &yetSentRideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ? AND app_sent_at IS NULL ORDER BY created_at ASC LIMIT 1`, ride.ID); err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					slog.Info("no ride_status", "ride_id", ride.ID)
-					status, err = getLatestRideStatus(ctx, tx, ride.ID)
-					if err != nil {
-						writeError(w, http.StatusInternalServerError, err)
-						slog.Info("failed to get latest ride status", "ride_id", ride.ID, "error", err)
-						return
-					}
-				} else {
+	c := make(chan appGetNotificationResponseData, 100)
+	appGetNotificationChannel.Store(user.ID, c)
+	ride := &Ride{}
+	if err := db.GetContext(ctx, ride, `SELECT * FROM rides WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, user.ID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			slog.Info("no rides", "user_id", user.ID)
+			ride = nil
+		} else {
+			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("failed to get rides", "error", err, "user_id", user.ID)
+			return
+		}
+	}
+	if ride != nil {
+		status := ""
+		yetSentRideStatus := RideStatus{}
+		if err := db.GetContext(ctx, &yetSentRideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ? AND app_sent_at IS NULL ORDER BY created_at ASC LIMIT 1`, ride.ID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				slog.Info("no ride_status", "ride_id", ride.ID)
+				status, err = getLatestRideStatus(ctx, db, ride.ID)
+				if err != nil {
 					writeError(w, http.StatusInternalServerError, err)
-					slog.Error("failed to get rides", "error", err, "ride_id", ride.ID)
+					slog.Info("failed to get latest ride status", "ride_id", ride.ID, "error", err)
 					return
 				}
 			} else {
-				status = yetSentRideStatus.Status
+				writeError(w, http.StatusInternalServerError, err)
+				slog.Error("failed to get rides", "error", err, "ride_id", ride.ID)
+				return
 			}
+		} else {
+			status = yetSentRideStatus.Status
+		}
 
-			fare, err := calculateDiscountedFare(ctx, tx, user.ID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
+		appGetNotificationChannel.Store(ride.ID, c)
+
+		go func() {
+			err := sendAppGetNotificationChannel(ctx, nil, status, ride)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, err)
-				slog.Error("failed to calculate discounted fare", "error", err, "user_id", user.ID, "ride", ride)
 				return
 			}
+		}()
+	}
 
-			response := appGetNotificationResponseData{
-				RideID: ride.ID,
-				PickupCoordinate: Coordinate{
-					Latitude:  ride.PickupLatitude,
-					Longitude: ride.PickupLongitude,
-				},
-				DestinationCoordinate: Coordinate{
-					Latitude:  ride.DestinationLatitude,
-					Longitude: ride.DestinationLongitude,
-				},
-				Fare:      fare,
-				Status:    status,
-				CreatedAt: ride.CreatedAt.UnixMilli(),
-				UpdateAt:  ride.UpdatedAt.UnixMilli(),
-			}
-
-			if ride.ChairID.Valid {
-				chair := GetChair(ride.ChairID.String)
-
-				stats, err := getChairStats(ctx, tx, chair.ID)
-				if err != nil {
-					writeError(w, http.StatusInternalServerError, err)
-					slog.Error("failed to get chair stats", "error", err, "chair_id", chair.ID)
-					return
-				}
-
-				response.Chair = &appGetNotificationResponseChair{
-					ID:    chair.ID,
-					Name:  chair.Name,
-					Model: chair.Model,
-					Stats: stats,
-				}
-			}
-
-			if yetSentRideStatus.ID != "" {
-				_, err := tx.ExecContext(ctx, `UPDATE ride_statuses SET app_sent_at = CURRENT_TIMESTAMP(6) WHERE id = ?`, yetSentRideStatus.ID)
-				if err != nil {
-					writeError(w, http.StatusInternalServerError, err)
-					slog.Error("failed to update ride_status.app_sent_at", "error", err, "ride_id", yetSentRideStatus.ID)
-					return
-				}
-			}
-
-			if err := tx.Commit(); err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				slog.Error("failed to commit", "error", err)
-				return
-			}
-			tx = nil
-
+	for {
+		select {
+		case response := <-c:
 			w.Write([]byte("data: "))
 			if err := json.NewEncoder(w).Encode(response); err != nil {
 				writeError(w, http.StatusInternalServerError, err)
 				slog.Error("failed to write response to http writer", "error", err, "response", response)
 				return
 			}
-			w.Write([]byte("\n\n"))
+			w.Write([]byte("\n"))
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
+			}
+			_, err := db.ExecContext(ctx, `UPDATE ride_statuses SET app_sent_at = CURRENT_TIMESTAMP(6) WHERE id = ? AND status = ?`, response.RideID, response.Status)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				slog.Error("failed to update ride_status.app_sent_at", "error", err, "ride_id", response.RideID)
+				return
 			}
 		case <-ctx.Done():
 			break
@@ -788,60 +811,26 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getChairStats(ctx context.Context, tx *sqlx.Tx, chairID string) (appGetNotificationResponseChairStats, error) {
+func getChairStats(ctx context.Context, db *sqlx.DB, chairID string) (appGetNotificationResponseChairStats, error) {
 	stats := appGetNotificationResponseChairStats{}
 
-	rides := []Ride{}
-	err := tx.SelectContext(
+	var score struct {
+		Sum   float64 `db:"s"`
+		Count int     `db:"c"`
+	}
+	err := db.GetContext(
 		ctx,
-		&rides,
-		`SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC`,
+		&score,
+		`SELECT SUM(evaluation) as s, COUNT(1) as c FROM rides WHERE chair_id = ? AND evaluation IS NOT NULL GROUP BY chair_id`,
 		chairID,
 	)
 	if err != nil {
 		return stats, err
 	}
 
-	totalRideCount := 0
-	totalEvaluation := 0.0
-	for _, ride := range rides {
-		rideStatuses := []RideStatus{}
-		err = tx.SelectContext(
-			ctx,
-			&rideStatuses,
-			`SELECT * FROM ride_statuses WHERE ride_id = ? ORDER BY created_at`,
-			ride.ID,
-		)
-		if err != nil {
-			return stats, err
-		}
-
-		var arrivedAt, pickupedAt *time.Time
-		var isCompleted bool
-		for _, status := range rideStatuses {
-			if status.Status == "ARRIVED" {
-				arrivedAt = &status.CreatedAt
-			} else if status.Status == "CARRYING" {
-				pickupedAt = &status.CreatedAt
-			}
-			if status.Status == "COMPLETED" {
-				isCompleted = true
-			}
-		}
-		if arrivedAt == nil || pickupedAt == nil {
-			continue
-		}
-		if !isCompleted {
-			continue
-		}
-
-		totalRideCount++
-		totalEvaluation += float64(*ride.Evaluation)
-	}
-
-	stats.TotalRidesCount = totalRideCount
-	if totalRideCount > 0 {
-		stats.TotalEvaluationAvg = totalEvaluation / float64(totalRideCount)
+	stats.TotalRidesCount = score.Count
+	if score.Count > 0 {
+		stats.TotalEvaluationAvg = score.Sum / float64(score.Count)
 	}
 
 	return stats, nil
@@ -986,6 +975,49 @@ func calculateDiscountedFare(ctx context.Context, tx *sqlx.Tx, userID string, ri
 
 			// 無いなら他のクーポンを付与された順番に使う
 			if err := tx.GetContext(ctx, &coupon, "SELECT * FROM coupons WHERE user_id = ? AND used_by IS NULL ORDER BY created_at LIMIT 1", userID); err != nil {
+				if !errors.Is(err, sql.ErrNoRows) {
+					return 0, err
+				}
+			} else {
+				discount = coupon.Discount
+			}
+		} else {
+			discount = coupon.Discount
+		}
+	}
+
+	meteredFare := farePerDistance * calculateDistance(pickupLatitude, pickupLongitude, destLatitude, destLongitude)
+	discountedMeteredFare := max(meteredFare-discount, 0)
+
+	return initialFare + discountedMeteredFare, nil
+}
+
+func calculateDiscountedFare2(ctx context.Context, db *sqlx.DB, userID string, ride *Ride, pickupLatitude, pickupLongitude, destLatitude, destLongitude int) (int, error) {
+	var coupon Coupon
+	discount := 0
+	if ride != nil {
+		destLatitude = ride.DestinationLatitude
+		destLongitude = ride.DestinationLongitude
+		pickupLatitude = ride.PickupLatitude
+		pickupLongitude = ride.PickupLongitude
+
+		// すでにクーポンが紐づいているならそれの割引額を参照
+		if err := db.GetContext(ctx, &coupon, "SELECT * FROM coupons WHERE used_by = ?", ride.ID); err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return 0, err
+			}
+		} else {
+			discount = coupon.Discount
+		}
+	} else {
+		// 初回利用クーポンを最優先で使う
+		if err := db.GetContext(ctx, &coupon, "SELECT * FROM coupons WHERE user_id = ? AND code = 'CP_NEW2024' AND used_by IS NULL", userID); err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return 0, err
+			}
+
+			// 無いなら他のクーポンを付与された順番に使う
+			if err := db.GetContext(ctx, &coupon, "SELECT * FROM coupons WHERE user_id = ? AND used_by IS NULL ORDER BY created_at LIMIT 1", userID); err != nil {
 				if !errors.Is(err, sql.ErrNoRows) {
 					return 0, err
 				}

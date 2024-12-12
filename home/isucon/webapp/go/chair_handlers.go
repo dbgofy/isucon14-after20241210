@@ -341,7 +341,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 				slog.Error("failed to write response to http writer", "error", err, "response", response)
 				return
 			}
-			w.Write([]byte("\n\n"))
+			w.Write([]byte("\n"))
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
 			}

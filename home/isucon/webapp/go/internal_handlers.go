@@ -71,6 +71,11 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
+		err = sendAppGetNotificationChannel(ctx, tx, "MATCHING", &ride)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
