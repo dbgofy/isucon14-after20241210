@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -381,6 +382,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			break
 		}
+		spew.Dump("chairGetNotification loop")
 	}
 }
 
