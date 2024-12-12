@@ -716,7 +716,12 @@ func sendAppGetNotificationChannel(ctx context.Context, tx *sqlx.Tx, status stri
 	if ride.ChairID.Valid {
 		chair := GetChair(ride.ChairID.String)
 
-		stats, err := getChairStats(ctx, db, chair.ID)
+		var stats appGetNotificationResponseChairStats
+		if tx != nil {
+			stats, err = getChairStats2(ctx, tx, chair.ID)
+		} else {
+			stats, err = getChairStats(ctx, db, chair.ID)
+		}
 		if err != nil {
 			return fmt.Errorf("failed to get chair stats: %w", err)
 		}
@@ -823,6 +828,34 @@ func getChairStats(ctx context.Context, db *sqlx.DB, chairID string) (appGetNoti
 		Count int     `db:"c"`
 	}
 	err := db.GetContext(
+		ctx,
+		&score,
+		`SELECT SUM(evaluation) as s, COUNT(1) as c FROM rides WHERE chair_id = ? AND evaluation IS NOT NULL GROUP BY chair_id`,
+		chairID,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return stats, nil
+		}
+		return stats, fmt.Errorf("failed to get chair stats: %w", err)
+	}
+
+	stats.TotalRidesCount = score.Count
+	if score.Count > 0 {
+		stats.TotalEvaluationAvg = score.Sum / float64(score.Count)
+	}
+
+	return stats, nil
+}
+
+func getChairStats2(ctx context.Context, tx *sqlx.Tx, chairID string) (appGetNotificationResponseChairStats, error) {
+	stats := appGetNotificationResponseChairStats{}
+
+	var score struct {
+		Sum   float64 `db:"s"`
+		Count int     `db:"c"`
+	}
+	err := tx.GetContext(
 		ctx,
 		&score,
 		`SELECT SUM(evaluation) as s, COUNT(1) as c FROM rides WHERE chair_id = ? AND evaluation IS NOT NULL GROUP BY chair_id`,
