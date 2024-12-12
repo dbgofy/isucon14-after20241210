@@ -102,11 +102,11 @@ func matching() {
 					ride = r
 					chairLocation := chairLocations[0]
 					selectChairLocationIndex := 0
-					for _, cl := range chairLocations {
+					for index, cl := range chairLocations {
 						if abs(ride.PickupLatitude-chairLocation.Latitude)+abs(ride.PickupLongitude-chairLocation.Longitude) > abs(r.PickupLatitude-cl.Latitude)+abs(r.PickupLongitude-cl.Longitude) {
 							ride = r
 							chairLocation = cl
-							selectChairLocationIndex = 0
+							selectChairLocationIndex = index
 						}
 					}
 
