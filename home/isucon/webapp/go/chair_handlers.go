@@ -197,10 +197,20 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 					writeError(w, http.StatusInternalServerError, err)
 					return
 				}
+				err = sendAppGetNotificationChannel(ctx, tx, "PICKUP", ride)
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, err)
+					return
+				}
 			}
 
 			if req.Latitude == ride.DestinationLatitude && req.Longitude == ride.DestinationLongitude && status == "CARRYING" {
 				if _, err := tx.ExecContext(ctx, "INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)", ulid.Make().String(), ride.ID, "ARRIVED"); err != nil {
+					writeError(w, http.StatusInternalServerError, err)
+					return
+				}
+				err = sendAppGetNotificationChannel(ctx, tx, "ARRIVED", ride)
+				if err != nil {
 					writeError(w, http.StatusInternalServerError, err)
 					return
 				}
@@ -396,6 +406,11 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
+		err = sendAppGetNotificationChannel(ctx, tx, "ENROUTE", ride)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
 	// After Picking up user
 	case "CARRYING":
 		status, err := getLatestRideStatus(ctx, tx, ride.ID)
@@ -408,6 +423,11 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if _, err := tx.ExecContext(ctx, "INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)", ulid.Make().String(), ride.ID, "CARRYING"); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		err = sendAppGetNotificationChannel(ctx, tx, "CARRYING", ride)
+		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
