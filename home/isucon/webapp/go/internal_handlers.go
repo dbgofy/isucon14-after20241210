@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"net/http"
 	"slices"
 )
@@ -74,6 +75,7 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 		err = sendAppGetNotificationChannel(ctx, tx, "MATCHING", &ride)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("failed to send notification", "error", err)
 			return
 		}
 	}

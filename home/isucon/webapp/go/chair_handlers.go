@@ -200,6 +200,7 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 				err = sendAppGetNotificationChannel(ctx, tx, "PICKUP", ride)
 				if err != nil {
 					writeError(w, http.StatusInternalServerError, err)
+					slog.Error("failed to send notification", "error", err)
 					return
 				}
 			}
@@ -212,6 +213,7 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 				err = sendAppGetNotificationChannel(ctx, tx, "ARRIVED", ride)
 				if err != nil {
 					writeError(w, http.StatusInternalServerError, err)
+					slog.Error("failed to send notification", "error", err)
 					return
 				}
 			}
@@ -409,6 +411,7 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 		err = sendAppGetNotificationChannel(ctx, tx, "ENROUTE", ride)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("failed to send notification", "error", err)
 			return
 		}
 	// After Picking up user
@@ -429,6 +432,7 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 		err = sendAppGetNotificationChannel(ctx, tx, "CARRYING", ride)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("failed to send notification", "error", err)
 			return
 		}
 	default:
