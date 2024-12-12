@@ -145,7 +145,7 @@ func setup() http.Handler {
 	{
 		ChairTotalDistanceMap = sync.Map{}
 		data := []ChairTotalDistance{}
-		if err := db.Select(&data, "SELECT * FROM chair_locations_total_distance ORDER BY chair_id"); err != nil {
+		if err = db.Select(&data, "SELECT * FROM chair_locations_total_distance ORDER BY chair_id"); err != nil {
 			panic(err)
 		}
 		for _, ctd := range data {
@@ -240,13 +240,30 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	for _, cl := range chairLocations {
 		InsertChairLocation(&cl)
 	}
-	chairTotalDistances := []ChairTotalDistance{}
-	if err := db.Select(&chairTotalDistances, "SELECT * FROM chair_locations_total_distance ORDER BY chair_id"); err != nil {
+	chairTotalDistanceByChairID := map[string]int{}
+	prevChairLocationByChairID := map[string]*ChairLocation{}
+	for _, cl := range chairLocations {
+		if prevChairLocation, ok := prevChairLocationByChairID[cl.ChairID]; ok {
+			chairTotalDistanceByChairID[cl.ChairID] += abs(cl.Latitude-prevChairLocation.Latitude) + abs(cl.Longitude-prevChairLocation.Longitude)
+		}
+		prevChairLocationByChairID[cl.ChairID] = &cl
+	}
+	chairTotalDistances := make([]ChairTotalDistance, 0, len(chairTotalDistanceByChairID))
+	for chairID, totalDistance := range chairTotalDistanceByChairID {
+		chairTotalDistances = append(chairTotalDistances, ChairTotalDistance{ChairID: chairID, TotalDistance: totalDistance})
+	}
+	_, err := db.ExecContext(ctx, "TRUNCATE TABLE chair_locations_total_distance")
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	for _, chairTotalDistance := range chairTotalDistances {
-		InsertChairTotalDistance(&chairTotalDistance)
+	_, err = db.NamedExecContext(ctx, "INSERT INTO chair_locations_total_distance (chair_id, total_distance) VALUES (:chair_id, :total_distance)", chairTotalDistances)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	for _, ctd := range chairTotalDistances {
+		InsertChairTotalDistance(&ctd)
 	}
 
 	ChairMap = sync.Map{}
