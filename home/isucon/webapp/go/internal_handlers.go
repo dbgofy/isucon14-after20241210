@@ -131,11 +131,11 @@ func matching() {
 						ride = r
 					}
 				}
-			}
-			err := matchingComp(ctx, ride, chairID)
-			if err != nil {
-				slog.Error("failed to matching", "error", err)
-				continue
+				err := matchingComp(ctx, ride, chairID)
+				if err != nil {
+					slog.Error("failed to matching", "error", err)
+					continue
+				}
 			}
 		}
 	}
