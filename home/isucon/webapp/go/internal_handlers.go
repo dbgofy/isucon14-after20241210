@@ -44,7 +44,7 @@ func matching() {
 				chairIDs := []string{}
 				if err := db.SelectContext(ctx, &chairIDs, `SELECT chairs.id FROM chairs LEFT JOIN rides ON chairs.id = rides.chair_id AND rides.evaluation IS NULL WHERE is_active = TRUE AND rides.id IS NULL`); err != nil {
 					slog.Error("failed to get chair ids", "error", err)
-					return
+					continue
 				}
 				for _, chairID := range chairIDs {
 					matchingChannel <- chairID
@@ -59,7 +59,7 @@ func matching() {
 			rides := []Ride{}
 			if err := db.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
 				slog.Error("failed to get rides", "error", err)
-				return
+				continue
 			}
 			if len(rides) == 0 {
 				matchingChannel <- chairID
