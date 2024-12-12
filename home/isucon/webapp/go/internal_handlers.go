@@ -89,7 +89,7 @@ func matching() {
 						slog.Error("fail GetChairLocation", "chairID", cID)
 						continue
 					}
-					chairLocations = append(chairLocations)
+					chairLocations = append(chairLocations, l)
 				}
 				if len(chairLocations) == 0 {
 					slog.Info("no chair locations")
