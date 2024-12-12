@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -688,13 +689,13 @@ func sendAppGetNotificationChannel(ctx context.Context, tx *sqlx.Tx, status stri
 		fare, err = calculateDiscountedFare(ctx, tx, ride.UserID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
 		if err != nil {
 			slog.Error("failed to calculate discounted fare", "error", err, "user_id", ride.UserID, "ride", ride)
-			return err
+			return fmt.Errorf("failed to calculate discounted fare: %w", err)
 		}
 	} else {
 		fare, err = calculateDiscountedFare2(ctx, db, ride.UserID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
 		if err != nil {
 			slog.Error("failed to calculate discounted fare", "error", err, "user_id", ride.UserID, "ride", ride)
-			return err
+			return fmt.Errorf("failed to calculate discounted fare2: %w", err)
 		}
 	}
 	response := appGetNotificationResponseData{
@@ -717,7 +718,7 @@ func sendAppGetNotificationChannel(ctx context.Context, tx *sqlx.Tx, status stri
 
 		stats, err := getChairStats(ctx, db, chair.ID)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get chair stats: %w", err)
 		}
 
 		response.Chair = &appGetNotificationResponseChair{
@@ -828,7 +829,7 @@ func getChairStats(ctx context.Context, db *sqlx.DB, chairID string) (appGetNoti
 		chairID,
 	)
 	if err != nil {
-		return stats, err
+		return stats, fmt.Errorf("failed to get chair stats: %w", err)
 	}
 
 	stats.TotalRidesCount = score.Count
