@@ -16,7 +16,7 @@ func matching() {
 	defer close(matchingChannel)
 
 	chairIDs := []string{}
-	if err := db.SelectContext(ctx, &chairIDs, `SELECT chairs.id FROM chairs LEFT JOIN rides ON chairs.id = rides.chair_id WHERE is_active = TRUE AND riders.id IS NULL`); err != nil {
+	if err := db.SelectContext(ctx, &chairIDs, `SELECT chairs.id FROM chairs LEFT JOIN rides ON chairs.id = rides.chair_id WHERE is_active = TRUE AND rides.id IS NULL`); err != nil {
 		slog.Error("failed to get chair ids", "error", err)
 		return
 	}
