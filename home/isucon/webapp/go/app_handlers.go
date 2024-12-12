@@ -436,6 +436,12 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 		slog.Error("failed to send notification", "error", err)
 		return
 	}
+	err = sendChairGetNotificationChannel(ctx, "MATCHING", &ride, user)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		slog.Error("failed to send notification", "error", err)
+		return
+	}
 
 	if err := tx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
@@ -632,6 +638,12 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = sendAppGetNotificationChannel(ctx, tx, status, ride)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		slog.Error("failed to send notification", "error", err)
+		return
+	}
+	err = sendChairGetNotificationChannel(ctx, "MATCHING", ride, nil)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		slog.Error("failed to send notification", "error", err)

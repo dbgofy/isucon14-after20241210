@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -204,6 +206,12 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 					slog.Error("failed to send notification", "error", err)
 					return
 				}
+				err = sendChairGetNotificationChannel(ctx, "PICKUP", ride, nil)
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, err)
+					slog.Error("failed to send notification", "error", err)
+					return
+				}
 			}
 
 			if req.Latitude == ride.DestinationLatitude && req.Longitude == ride.DestinationLongitude && status == "CARRYING" {
@@ -212,6 +220,12 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				err = sendAppGetNotificationChannel(ctx, tx, "ARRIVED", ride)
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, err)
+					slog.Error("failed to send notification", "error", err)
+					return
+				}
+				err = sendChairGetNotificationChannel(ctx, "ARRIVED", ride, nil)
 				if err != nil {
 					writeError(w, http.StatusInternalServerError, err)
 					slog.Error("failed to send notification", "error", err)
@@ -249,6 +263,44 @@ type chairGetNotificationResponseData struct {
 	Status                string     `json:"status"`
 }
 
+// chairGetNotificationChannel map[userID]chan chairGetNotificationResponseData
+var chairGetNotificationChannel = sync.Map{}
+
+func sendChairGetNotificationChannel(ctx context.Context, status string, ride *Ride, user *User) error {
+	c, ok := chairGetNotificationChannel.Load(ride.ID)
+	if !ok {
+		return nil
+	}
+	channel, ok := c.(chan chairGetNotificationResponseData)
+	if !ok {
+		return nil
+	}
+	if user == nil {
+		err := db.GetContext(ctx, user, "SELECT * FROM users WHERE id = ?", ride.UserID)
+		if err != nil {
+			return fmt.Errorf("failed to get user: %w", err)
+		}
+	}
+	response := chairGetNotificationResponseData{
+		RideID: ride.ID,
+		User: simpleUser{
+			ID:   user.ID,
+			Name: fmt.Sprintf("%s %s", user.Firstname, user.Lastname),
+		},
+		PickupCoordinate: Coordinate{
+			Latitude:  ride.PickupLatitude,
+			Longitude: ride.PickupLongitude,
+		},
+		DestinationCoordinate: Coordinate{
+			Latitude:  ride.DestinationLatitude,
+			Longitude: ride.DestinationLongitude,
+		},
+		Status: status,
+	}
+	channel <- response
+	return nil
+}
+
 func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chair := ctx.Value("chair").(*Chair)
@@ -257,96 +309,58 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
 
-	ticker := time.NewTicker(time.Second * 1)
-	for {
-		select {
-		case <-ticker.C:
-			tx, err := db.Beginx()
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				slog.Error("failed to begin tx", "error", err)
-				return
-			}
-			defer func() {
-				if tx != nil {
-					tx.Rollback()
-				}
-			}()
-
-			ride := &Ride{}
-			yetSentRideStatus := RideStatus{}
-			status := ""
-
-			if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC LIMIT 1`, chair.ID); err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					tx.Rollback()
-					tx = nil
-					slog.Info("no rides", "chair_id", chair.ID)
-					continue
-				}
-				writeError(w, http.StatusInternalServerError, err)
-				slog.Error("failed to get rides", "error", err, "chair_id", chair.ID)
-				return
-			}
-
-			if err := tx.GetContext(ctx, &yetSentRideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ? AND chair_sent_at IS NULL ORDER BY created_at ASC LIMIT 1`, ride.ID); err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					status, err = getLatestRideStatus(ctx, tx, ride.ID)
-					if err != nil {
-						writeError(w, http.StatusInternalServerError, err)
-						slog.Info("failed to get latest ride status", "ride_id", ride.ID, "error", err)
-						return
-					}
-				} else {
+	c := make(chan chairGetNotificationResponseData, 100)
+	chairGetNotificationChannel.Store(chair.ID, c)
+	ride := &Ride{}
+	if err := db.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id = ? ORDER BY created_at DESC LIMIT 1`, chair.ID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			slog.Info("no rides", "chair_id", chair.ID)
+			ride = nil
+		} else {
+			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("failed to get rides", "error", err, "chair_id", chair.ID)
+			return
+		}
+	}
+	if ride != nil {
+		status := ""
+		yetSentRideStatus := RideStatus{}
+		if err := db.GetContext(ctx, &yetSentRideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ? AND chair_sent_at IS NULL ORDER BY created_at ASC LIMIT 1`, ride.ID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				status, err = getLatestRideStatus(ctx, db, ride.ID)
+				if err != nil {
 					writeError(w, http.StatusInternalServerError, err)
-					slog.Error("failed to get rides", "error", err, "ride_id", ride.ID)
+					slog.Info("failed to get latest ride status", "ride_id", ride.ID, "error", err)
 					return
 				}
 			} else {
-				status = yetSentRideStatus.Status
+				writeError(w, http.StatusInternalServerError, err)
+				slog.Error("failed to get rides", "error", err, "ride_id", ride.ID)
+				return
 			}
+		} else {
+			status = yetSentRideStatus.Status
+		}
 
-			user := &User{}
-			err = tx.GetContext(ctx, user, "SELECT * FROM users WHERE id = ? FOR SHARE", ride.UserID)
+		chairGetNotificationChannel.Store(ride.ID, c)
+
+		go func() {
+			err := sendChairGetNotificationChannel(ctx, status, ride, nil)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, err)
-				slog.Error("failed to get user", "error", err, "user_id", ride.UserID)
+				slog.Error("failed to send notification", "error", err)
 				return
 			}
+		}()
+	}
 
-			if yetSentRideStatus.ID != "" {
-				_, err := tx.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = CURRENT_TIMESTAMP(6) WHERE id = ?`, yetSentRideStatus.ID)
-				if err != nil {
-					writeError(w, http.StatusInternalServerError, err)
-					slog.Error("failed to update ride_status.app_sent_at", "error", err, "ride_id", yetSentRideStatus.ID)
-					return
-				}
-			}
-
-			if err := tx.Commit(); err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				slog.Error("failed to commit", "error", err)
-				return
-			}
-
-			response := &chairGetNotificationResponseData{
-				RideID: ride.ID,
-				User: simpleUser{
-					ID:   user.ID,
-					Name: fmt.Sprintf("%s %s", user.Firstname, user.Lastname),
-				},
-				PickupCoordinate: Coordinate{
-					Latitude:  ride.PickupLatitude,
-					Longitude: ride.PickupLongitude,
-				},
-				DestinationCoordinate: Coordinate{
-					Latitude:  ride.DestinationLatitude,
-					Longitude: ride.DestinationLongitude,
-				},
-				Status: status,
-			}
-
+	for {
+		select {
+		case response := <-c:
 			w.Write([]byte("data: "))
 			if err := json.NewEncoder(w).Encode(response); err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -356,6 +370,12 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("\n"))
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
+			}
+			_, err := db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = CURRENT_TIMESTAMP(6) WHERE ride_id = ? AND status = ?`, response.RideID, response.Status)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				slog.Error("failed to update ride_status.app_sent_at", "error", err, "ride_id", response.RideID)
+				return
 			}
 		case <-ctx.Done():
 			break
@@ -414,6 +434,12 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 			slog.Error("failed to send notification", "error", err)
 			return
 		}
+		err = sendChairGetNotificationChannel(ctx, "ENROUTE", ride, nil)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("failed to send notification", "error", err)
+			return
+		}
 	// After Picking up user
 	case "CARRYING":
 		status, err := getLatestRideStatus(ctx, tx, ride.ID)
@@ -430,6 +456,12 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		err = sendAppGetNotificationChannel(ctx, tx, "CARRYING", ride)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("failed to send notification", "error", err)
+			return
+		}
+		err = sendChairGetNotificationChannel(ctx, "CARRYING", ride, nil)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			slog.Error("failed to send notification", "error", err)
