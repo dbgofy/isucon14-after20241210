@@ -6,6 +6,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"log/slog"
 	"net/http"
+	"slices"
 	"time"
 )
 
@@ -30,6 +31,7 @@ func matching() {
 
 	slog.Info("matching start")
 	defer slog.Info("matching end")
+	rides := []Ride{}
 	for {
 		slog.Info("matching loop")
 		select {
@@ -42,10 +44,11 @@ func matching() {
 			if !chair.IsActive {
 				continue
 			}
-			rides := []Ride{}
-			if err := db.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
-				slog.Error("failed to get rides", "error", err)
-				return
+			if len(rides) == 0 {
+				if err := db.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
+					slog.Error("failed to get rides", "error", err)
+					return
+				}
 			}
 			if len(rides) == 0 {
 				matchingChannel <- chairID
@@ -59,13 +62,16 @@ func matching() {
 				continue
 			}
 			ride := rides[0]
+			rideIndex := 0
 			if ride.CreatedAt.Add(3 * time.Second).Before(time.Now()) { // 3秒以上待っているrideがある場合は、最も待っているrideを選択
-				for _, r := range rides {
+				for index, r := range rides {
 					if abs(ride.PickupLatitude-chairLocation.Latitude)+abs(ride.PickupLongitude-chairLocation.Longitude) > abs(r.PickupLatitude-chairLocation.Latitude)+abs(r.PickupLongitude-chairLocation.Longitude) {
 						ride = r
+						rideIndex = index
 					}
 				}
 			}
+			slices.Delete(rides, rideIndex, rideIndex+1)
 			ride.ChairID = sql.NullString{String: chairID, Valid: true}
 			if _, err := db.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ? AND chair_id IS NULL", chairID, ride.ID); err != nil {
 				slog.Error("failed to update ride", "error", err)
