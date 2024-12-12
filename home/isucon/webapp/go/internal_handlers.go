@@ -17,6 +17,7 @@ func matching() {
 	for {
 		select {
 		case chairID := <-matchingChannel:
+			slog.Info("matching", "chair_id", chairID)
 			chair := GetChair(chairID)
 			if !chair.IsActive {
 				continue
@@ -28,6 +29,7 @@ func matching() {
 			if len(rides) == 0 {
 				matchingChannel <- chairID
 				time.Sleep(1 * time.Second)
+				slog.Info("no rides")
 				continue
 			}
 			chairLocation := GetChairLocation(chairID)
