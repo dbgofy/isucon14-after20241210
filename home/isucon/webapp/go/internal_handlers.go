@@ -14,6 +14,15 @@ func matching() {
 	ctx := context.Background()
 	matchingChannel = make(chan string, 1000)
 	defer close(matchingChannel)
+
+	chairIDs := []string{}
+	if err := db.SelectContext(ctx, &chairIDs, `SELECT id FROM chairs LEFT JOIN rides ON chairs.id = rides.chair_id WHERE is_active = TRUE AND riders.id IS NULL`); err != nil {
+		return
+	}
+	for _, chairID := range chairIDs {
+		matchingChannel <- chairID
+	}
+
 	for {
 		select {
 		case chairID := <-matchingChannel:
