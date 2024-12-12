@@ -17,6 +17,7 @@ func matching() {
 
 	chairIDs := []string{}
 	if err := db.SelectContext(ctx, &chairIDs, `SELECT id FROM chairs LEFT JOIN rides ON chairs.id = rides.chair_id WHERE is_active = TRUE AND riders.id IS NULL`); err != nil {
+		slog.Error("failed to get chair ids", "error", err)
 		return
 	}
 	for _, chairID := range chairIDs {
