@@ -829,6 +829,9 @@ func getChairStats(ctx context.Context, db *sqlx.DB, chairID string) (appGetNoti
 		chairID,
 	)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return stats, nil
+		}
 		return stats, fmt.Errorf("failed to get chair stats: %w", err)
 	}
 
