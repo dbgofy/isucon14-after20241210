@@ -116,7 +116,7 @@ func matching() {
 						break
 					}
 
-					slices.Delete(chairLocations, selectChairLocationIndex, selectChairLocationIndex+1)
+					chairLocations = slices.Delete(chairLocations, selectChairLocationIndex, selectChairLocationIndex+1)
 				}
 				for _, cl := range chairLocations {
 					matchingChannel <- cl.ChairID
