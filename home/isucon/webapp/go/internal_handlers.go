@@ -15,6 +15,7 @@ func matching() {
 	ctx := context.Background()
 	matchingChannel = make(chan string, 1000)
 	defer close(matchingChannel)
+	matchingInit = make(chan struct{})
 
 	chairIDs := []string{}
 	if err := db.SelectContext(ctx, &chairIDs, `SELECT chairs.id FROM chairs LEFT JOIN rides ON chairs.id = rides.chair_id AND rides.evaluation IS NULL WHERE is_active = TRUE AND rides.id IS NULL`); err != nil {
