@@ -213,7 +213,6 @@ type postInitializeResponse struct {
 
 func postInitialize(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	go matching()
 	req := &postInitializeRequest{}
 	if err := bindJSON(r, req); err != nil {
 		writeError(w, http.StatusBadRequest, err)
@@ -275,6 +274,7 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	appGetNotificationChannel = sync.Map{}
+	go matching()
 
 	writeJSON(w, http.StatusOK, postInitializeResponse{Language: "go"})
 }

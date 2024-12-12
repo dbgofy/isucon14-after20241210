@@ -9,7 +9,7 @@ import (
 )
 
 // chairIDを入れる
-var matchingChannel = make(chan string, 1000)
+var matchingChannel chan string
 
 func matching() {
 	ctx := context.Background()
