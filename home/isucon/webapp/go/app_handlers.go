@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -828,9 +827,8 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case <-ctx.Done():
-			break
+			return
 		}
-		spew.Dump("appGetNotification loop")
 	}
 }
 
