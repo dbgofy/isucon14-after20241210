@@ -59,8 +59,8 @@ func matching() {
 				continue
 			}
 			ride := rides[0]
-			// 1秒以上待っているrideがある場合は、最も待っているrideを選択
-			if !ride.CreatedAt.Add(1 * time.Second).Before(time.Now()) {
+			// 3秒以上待っているrideがある場合は、最も待っているrideを選択
+			if !ride.CreatedAt.Add(3 * time.Second).Before(time.Now()) {
 				for _, r := range rides {
 					if abs(ride.PickupLatitude-chairLocation.Latitude)+abs(ride.PickupLongitude-chairLocation.Longitude) > abs(r.PickupLatitude-chairLocation.Latitude)+abs(r.PickupLongitude-chairLocation.Longitude) {
 						ride = r
