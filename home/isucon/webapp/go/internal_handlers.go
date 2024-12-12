@@ -114,6 +114,7 @@ func matching() {
 			} else {
 				chairLocation := GetChairLocation(chairID)
 				if chairLocation == nil {
+					matchingChannel <- chairID
 					spew.Dump("fail GetChairLocation, chairID: ", chairID)
 					continue
 				}
