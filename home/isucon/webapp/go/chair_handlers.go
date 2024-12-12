@@ -366,6 +366,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 		select {
 		case response := <-c:
 			// 順番が前後しちゃった場合はもう一度キューに詰め直す
+			spew.Dump(status, response.Status)
 			if status != response.Status {
 				if status == "COMPLETED" {
 					if response.Status != "MATCHING" {
@@ -407,6 +408,8 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 			}
 
 			status = response.Status
+
+			spew.Dump(response)
 			w.Write([]byte("data: "))
 			if err := json.NewEncoder(w).Encode(response); err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
