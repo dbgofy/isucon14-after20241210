@@ -83,6 +83,10 @@ func matching() {
 						chairLocations = append(chairLocations)
 					}
 				}
+				if len(chairLocations) == 0 {
+					slog.Info("no chair locations")
+					continue
+				}
 				for _, r := range rides {
 					ride = r
 					chairLocation = chairLocations[0]
