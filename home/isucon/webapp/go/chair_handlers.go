@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -268,7 +267,6 @@ type chairGetNotificationResponseData struct {
 var chairGetNotificationChannel = sync.Map{}
 
 func sendChairGetNotificationChannel(ctx context.Context, status string, ride *Ride, user *User) error {
-	spew.Dump(status, ride)
 	if !ride.ChairID.Valid {
 		return fmt.Errorf("ride.ChairID is not valid")
 	}
@@ -366,7 +364,6 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 		select {
 		case response := <-c:
 			// 順番が前後しちゃった場合はもう一度キューに詰め直す
-			spew.Dump(status, response.Status)
 			if status != response.Status {
 				if status == "COMPLETED" {
 					if response.Status != "MATCHING" {
@@ -409,19 +406,13 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 
 			status = response.Status
 
-			spew.Dump(response)
 			if _, err := w.Write([]byte("data: ")); err != nil {
 				slog.Error("failed to write data", "error", err)
 			}
-			res, err := json.Marshal(response)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				slog.Error("failed to marshal response", "error", err)
+			if err := json.NewEncoder(w).Encode(response); err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				slog.Error("failed to write response to http writer", "error", err, "response", response)
 				return
-			}
-			spew.Dump(res)
-			if _, err := w.Write(res); err != nil {
-				slog.Error("failed to write response", "error", err)
 			}
 			if _, err := w.Write([]byte("\n\n")); err != nil {
 				slog.Error("failed to write new line", "error", err)
@@ -429,13 +420,12 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
 			}
-			_, err = db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = CURRENT_TIMESTAMP(6) WHERE ride_id = ? AND status = ?`, response.RideID, response.Status)
+			_, err := db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = CURRENT_TIMESTAMP(6) WHERE ride_id = ? AND status = ?`, response.RideID, response.Status)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, err)
 				slog.Error("failed to update ride_status.chair_sent_at", "error", err, "ride_id", response.RideID)
 				return
 			}
-			spew.Dump("complete")
 		case <-ctx.Done():
 			return
 		}
