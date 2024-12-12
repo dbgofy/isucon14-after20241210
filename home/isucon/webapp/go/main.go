@@ -84,7 +84,7 @@ func ListChairLocations(key string) (cls []*ChairLocation) {
 
 func main() {
 	mux := setup()
-	slog.Info("Listening on :8080")
+	//slog.Info("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
 }
 
@@ -155,7 +155,7 @@ func setup() http.Handler {
 	go matching()
 
 	mux := chi.NewRouter()
-	mux.Use(middleware.Logger)
+	//mux.Use(middleware.Logger)
 	mux.Use(middleware.Recoverer)
 
 	mux.HandleFunc("POST /api/initialize", postInitialize)
