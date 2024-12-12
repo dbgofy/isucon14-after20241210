@@ -268,7 +268,7 @@ type chairGetNotificationResponseData struct {
 var chairGetNotificationChannel = sync.Map{}
 
 func sendChairGetNotificationChannel(ctx context.Context, status string, ride *Ride, user *User) error {
-	spew.Dump(ride)
+	spew.Dump(status, ride)
 	if !ride.ChairID.Valid {
 		return fmt.Errorf("ride.ChairID is not valid")
 	}
