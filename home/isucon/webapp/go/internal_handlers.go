@@ -57,11 +57,6 @@ func matching() {
 				slog.Info("no rides.")
 				continue
 			}
-			chairLocation := GetChairLocation(chairID)
-			if chairLocation == nil {
-				spew.Dump("fail GetChairLocation, chairID: ", chairID)
-				continue
-			}
 			ride := rides[0]
 			// 3秒以上待っているrideがある場合は、今あるchairを全て取り出して、うまくマッチングさせる
 			if ride.CreatedAt.Add(3 * time.Second).Before(time.Now()) {
@@ -89,7 +84,7 @@ func matching() {
 				}
 				for _, r := range rides {
 					ride = r
-					chairLocation = chairLocations[0]
+					chairLocation := chairLocations[0]
 					selectChairLocationIndex := 0
 					for _, cl := range chairLocations {
 						if abs(ride.PickupLatitude-chairLocation.Latitude)+abs(ride.PickupLongitude-chairLocation.Longitude) > abs(r.PickupLatitude-cl.Latitude)+abs(r.PickupLongitude-cl.Longitude) {
@@ -108,6 +103,11 @@ func matching() {
 					slices.Delete(chairLocations, selectChairLocationIndex, selectChairLocationIndex+1)
 				}
 			} else {
+				chairLocation := GetChairLocation(chairID)
+				if chairLocation == nil {
+					spew.Dump("fail GetChairLocation, chairID: ", chairID)
+					continue
+				}
 				for _, r := range rides {
 					if abs(ride.PickupLatitude-chairLocation.Latitude)+abs(ride.PickupLongitude-chairLocation.Longitude) > abs(r.PickupLatitude-chairLocation.Latitude)+abs(r.PickupLongitude-chairLocation.Longitude) {
 						ride = r
