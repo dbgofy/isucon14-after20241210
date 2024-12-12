@@ -263,7 +263,7 @@ type chairGetNotificationResponseData struct {
 	Status                string     `json:"status"`
 }
 
-// chairGetNotificationChannel map[userID]chan chairGetNotificationResponseData
+// chairGetNotificationChannel map[chairID]chan chairGetNotificationResponseData
 var chairGetNotificationChannel = sync.Map{}
 
 func sendChairGetNotificationChannel(ctx context.Context, status string, ride *Ride, user *User) error {

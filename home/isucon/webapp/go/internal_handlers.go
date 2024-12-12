@@ -59,6 +59,17 @@ func matching() {
 				slog.Error("failed to update ride", "error", err)
 				continue
 			}
+			err := sendAppGetNotificationChannel(ctx, nil, "MATCHING", &ride)
+			if err != nil {
+				slog.Error("failed to send notification", "error", err)
+				continue
+			}
+			err = sendChairGetNotificationChannel(ctx, "MATCHING", &ride, nil)
+			if err != nil {
+				slog.Error("failed to send notification", "error", err)
+				continue
+			}
+
 		}
 	}
 }
