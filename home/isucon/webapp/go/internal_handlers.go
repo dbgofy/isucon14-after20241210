@@ -32,7 +32,6 @@ func matching() {
 		select {
 		case <-matchingInit:
 			slog.Info("matching init")
-			close(matchingChannel)
 			matchingChannel = make(chan string, 1000)
 		case chairID := <-matchingChannel:
 			slog.Info("matching", "chair_id", chairID)
