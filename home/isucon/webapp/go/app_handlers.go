@@ -794,41 +794,43 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 		select {
 		case response := <-c:
 			// 順番が前後しちゃった場合はもう一度キューに詰め直す
-			if status == "COMPLETED" {
-				if response.Status != "MATCHING" {
-					slog.Info("status is not matching", "status", response.Status)
-					c <- response
-					continue
-				}
-			} else if status == "MATCHING" {
-				if response.Status != "ENROUTE" {
-					slog.Info("status is not enroute", "status", response.Status)
-					c <- response
-					continue
-				}
-			} else if status == "ENROUTE" {
-				if response.Status != "PICKUP" {
-					slog.Info("status is not pickup", "status", response.Status)
-					c <- response
-					continue
-				}
-			} else if status == "PICKUP" {
-				if response.Status != "CARRYING" {
-					slog.Info("status is not carrying", "status", response.Status)
-					c <- response
-					continue
-				}
-			} else if status == "CARRYING" {
-				if response.Status != "ARRIVED" {
-					slog.Info("status is not arrived", "status", response.Status)
-					c <- response
-					continue
-				}
-			} else if status == "ARRIVED" {
-				if response.Status != "COMPLETED" {
-					slog.Info("status is not completed", "status", response.Status)
-					c <- response
-					continue
+			if status != response.Status {
+				if status == "COMPLETED" {
+					if response.Status != "MATCHING" {
+						slog.Info("status is not matching", "status", response.Status)
+						c <- response
+						continue
+					}
+				} else if status == "MATCHING" {
+					if response.Status != "ENROUTE" {
+						slog.Info("status is not enroute", "status", response.Status)
+						c <- response
+						continue
+					}
+				} else if status == "ENROUTE" {
+					if response.Status != "PICKUP" {
+						slog.Info("status is not pickup", "status", response.Status)
+						c <- response
+						continue
+					}
+				} else if status == "PICKUP" {
+					if response.Status != "CARRYING" {
+						slog.Info("status is not carrying", "status", response.Status)
+						c <- response
+						continue
+					}
+				} else if status == "CARRYING" {
+					if response.Status != "ARRIVED" {
+						slog.Info("status is not arrived", "status", response.Status)
+						c <- response
+						continue
+					}
+				} else if status == "ARRIVED" {
+					if response.Status != "COMPLETED" {
+						slog.Info("status is not completed", "status", response.Status)
+						c <- response
+						continue
+					}
 				}
 			}
 
