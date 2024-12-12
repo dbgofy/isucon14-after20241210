@@ -102,6 +102,7 @@ func chairPostActivity(w http.ResponseWriter, r *http.Request) {
 	}
 	chair.IsActive = req.IsActive
 	UpdateChair(chair, nil)
+	matchingChannel <- chair.ID
 
 	w.WriteHeader(http.StatusNoContent)
 }
