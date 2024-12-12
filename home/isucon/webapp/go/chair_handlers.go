@@ -422,7 +422,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 			if _, err := w.Write(res); err != nil {
 				slog.Error("failed to write response", "error", err)
 			}
-			if _, err := w.Write([]byte("\n")); err != nil {
+			if _, err := w.Write([]byte("\n\n")); err != nil {
 				slog.Error("failed to write new line", "error", err)
 			}
 			if f, ok := w.(http.Flusher); ok {
