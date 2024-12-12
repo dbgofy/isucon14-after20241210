@@ -413,10 +413,14 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 			if _, err := w.Write([]byte("data: ")); err != nil {
 				slog.Error("failed to write data", "error", err)
 			}
-			if err := json.NewEncoder(w).Encode(response); err != nil {
+			res, err := json.Marshal(response)
+			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
-				slog.Error("failed to write response to http writer", "error", err, "response", response)
+				slog.Error("failed to marshal response", "error", err)
 				return
+			}
+			if _, err := w.Write(res); err != nil {
+				slog.Error("failed to write response", "error", err)
 			}
 			if _, err := w.Write([]byte("\n")); err != nil {
 				slog.Error("failed to write new line", "error", err)
@@ -424,7 +428,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
 			}
-			_, err := db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = CURRENT_TIMESTAMP(6) WHERE ride_id = ? AND status = ?`, response.RideID, response.Status)
+			_, err = db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = CURRENT_TIMESTAMP(6) WHERE ride_id = ? AND status = ?`, response.RideID, response.Status)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, err)
 				slog.Error("failed to update ride_status.chair_sent_at", "error", err, "ride_id", response.RideID)
