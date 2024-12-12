@@ -25,6 +25,7 @@ func matching() {
 	}
 
 	slog.Info("matching start")
+	defer slog.Info("matching end")
 	for {
 		slog.Info("matching loop")
 		select {
@@ -36,6 +37,7 @@ func matching() {
 			}
 			rides := []Ride{}
 			if err := db.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
+				slog.Error("failed to get rides", "error", err)
 				return
 			}
 			if len(rides) == 0 {
