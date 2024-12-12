@@ -11,6 +11,7 @@ ALTER TABLE rides ADD INDEX IX_rides_evaluation_chair_id_updated_at (evaluation,
 ALTER TABLE chairs ADD INDEX IX_chairs_access_token (access_token);
 ALTER TABLE chairs ADD INDEX IX_chairs_owner_id (owner_id);
 ALTER TABLE coupons ADD INDEX IX_coupons_code (code);
+ALTER TABLE coupons ADD INDEX IX_coupons_used_by_user_id_created_at (used_by, user_id, created_at);
 
 DROP TABLE IF EXISTS chair_locations_total_distance;
 CREATE TABLE chair_locations_total_distance

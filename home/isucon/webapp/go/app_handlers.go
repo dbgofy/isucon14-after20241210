@@ -562,6 +562,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, errors.New("ride not found"))
 		return
 	}
+	ride.Evaluation = &req.Evaluation
 
 	_, err = tx.ExecContext(
 		ctx,
@@ -572,15 +573,6 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	status = "COMPLETED"
-
-	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE id = ?`, rideID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeError(w, http.StatusNotFound, errors.New("ride not found"))
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
 
 	paymentToken := &PaymentToken{}
 	if err := tx.GetContext(ctx, paymentToken, `SELECT * FROM payment_tokens WHERE user_id = ?`, ride.UserID); err != nil {
@@ -968,16 +960,12 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		ctx,
 		&chairs,
 		`
-			SELECT c.id, c.owner_id, c.name, c.model, c.is_active, c.access_token, c.created_at, c.updated_at
+			SELECT c.*
 			FROM chairs AS c
 			LEFT JOIN rides AS r
 							ON r.chair_id = c.id
-			LEFT JOIN ride_statuses AS rs
-							ON rs.ride_id = r.id
-							AND status = 'COMPLETED'
-			WHERE c.is_active
-			GROUP BY c.id, c.owner_id, c.name, c.model, c.is_active, c.access_token, c.created_at, c.updated_at
-			HAVING COUNT(r.id) - COUNT(rs.id) = 0
+							AND r.evaluation IS NULL
+			WHERE r.id IS NULL
 		`, // TODO: ChairMapを使う
 	)
 	if err != nil {
