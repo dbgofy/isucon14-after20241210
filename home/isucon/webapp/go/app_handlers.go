@@ -316,34 +316,44 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	rides := []Ride{}
-	if err := tx.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE user_id = ?`, user.ID); err != nil {
+	continuingNotCompletedRideCount := 0
+	if err = tx.GetContext(ctx, &continuingNotCompletedRideCount, `SELECT count(1) FROM rides WHERE user_id = ? AND evaluation IS NULL`, user.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	continuingRideCount := 0
-	for _, ride := range rides {
-		status, err := getLatestRideStatus(ctx, tx, ride.ID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		if status != "COMPLETED" {
-			continuingRideCount++
-		}
-	}
-
-	if continuingRideCount > 0 {
+	if continuingNotCompletedRideCount > 0 {
 		writeError(w, http.StatusConflict, errors.New("ride already exists"))
 		return
 	}
 
+	countingRide := 0
+	if err = tx.GetContext(ctx, &countingRide, `SELECT count(1) FROM rides WHERE user_id = ?`, user.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	now := time.Now()
+	ride := Ride{
+		ID:     rideID,
+		UserID: user.ID,
+		ChairID: sql.NullString{
+			String: "",
+			Valid:  false,
+		},
+		PickupLatitude:       req.PickupCoordinate.Latitude,
+		PickupLongitude:      req.PickupCoordinate.Longitude,
+		DestinationLatitude:  req.DestinationCoordinate.Latitude,
+		DestinationLongitude: req.DestinationCoordinate.Longitude,
+		Evaluation:           nil,
+		CreatedAt:            now,
+		UpdatedAt:            now,
+	}
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO rides (id, user_id, pickup_latitude, pickup_longitude, destination_latitude, destination_longitude)
-				  VALUES (?, ?, ?, ?, ?, ?)`,
-		rideID, user.ID, req.PickupCoordinate.Latitude, req.PickupCoordinate.Longitude, req.DestinationCoordinate.Latitude, req.DestinationCoordinate.Longitude,
+		`INSERT INTO rides (id, user_id, pickup_latitude, pickup_longitude, destination_latitude, destination_longitude, created_at, updated_at)
+				  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		rideID, user.ID, req.PickupCoordinate.Latitude, req.PickupCoordinate.Longitude, req.DestinationCoordinate.Latitude, req.DestinationCoordinate.Longitude, now, now,
 	); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -358,14 +368,8 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var rideCount int
-	if err := tx.GetContext(ctx, &rideCount, `SELECT COUNT(*) FROM rides WHERE user_id = ? `, user.ID); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-
 	var coupon Coupon
-	if rideCount == 1 {
+	if countingRide == 1 {
 		// 初回利用で、初回利用クーポンがあれば必ず使う
 		if err := tx.GetContext(ctx, &coupon, "SELECT * FROM coupons WHERE user_id = ? AND code = 'CP_NEW2024' AND used_by IS NULL FOR UPDATE", user.ID); err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
@@ -416,12 +420,6 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-	}
-
-	ride := Ride{}
-	if err := tx.GetContext(ctx, &ride, "SELECT * FROM rides WHERE id = ?", rideID); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
 	}
 
 	fare, err := calculateDiscountedFare(ctx, tx, user.ID, &ride, req.PickupCoordinate.Latitude, req.PickupCoordinate.Longitude, req.DestinationCoordinate.Latitude, req.DestinationCoordinate.Longitude)
