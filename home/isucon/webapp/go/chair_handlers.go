@@ -410,13 +410,17 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 			status = response.Status
 
 			spew.Dump(response)
-			w.Write([]byte("data: "))
+			if _, err := w.Write([]byte("data: ")); err != nil {
+				slog.Error("failed to write data", "error", err)
+			}
 			if err := json.NewEncoder(w).Encode(response); err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				slog.Error("failed to write response to http writer", "error", err, "response", response)
 				return
 			}
-			w.Write([]byte("\n"))
+			if _, err := w.Write([]byte("\n")); err != nil {
+				slog.Error("failed to write new line", "error", err)
+			}
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
 			}
@@ -426,6 +430,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 				slog.Error("failed to update ride_status.chair_sent_at", "error", err, "ride_id", response.RideID)
 				return
 			}
+			spew.Dump("complete")
 		case <-ctx.Done():
 			return
 		}
