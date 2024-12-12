@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"github.com/davecgh/go-spew/spew"
 	"log/slog"
 	"net/http"
 	"time"
@@ -53,6 +54,10 @@ func matching() {
 				continue
 			}
 			chairLocation := GetChairLocation(chairID)
+			if chairLocation == nil {
+				spew.Dump("fail GetChairLocation, chairID: ", chairID)
+				continue
+			}
 			ride := rides[0]
 			for _, r := range rides {
 				if abs(ride.PickupLatitude-chairLocation.Latitude)+abs(ride.PickupLongitude-chairLocation.Longitude) > abs(r.PickupLatitude-chairLocation.Latitude)+abs(r.PickupLongitude-chairLocation.Longitude) {
