@@ -630,7 +630,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		slog.Error("failed to send notification", "error", err)
 		return
 	}
-	err = sendChairGetNotificationChannel(ctx, "MATCHING", ride, nil)
+	err = sendChairGetNotificationChannel(ctx, status, ride, nil)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		slog.Error("failed to send notification", "error", err)

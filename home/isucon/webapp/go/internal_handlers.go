@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log/slog"
 	"net/http"
 	"time"
@@ -58,6 +59,7 @@ func matching() {
 					ride = r
 				}
 			}
+			ride.ChairID = sql.NullString{String: chairID, Valid: true}
 			if _, err := db.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ? AND chair_id IS NULL", chairID, ride.ID); err != nil {
 				slog.Error("failed to update ride", "error", err)
 				continue
