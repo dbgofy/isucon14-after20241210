@@ -5,9 +5,12 @@ ALTER TABLE ride_statuses ADD INDEX IX_ride_statuses_ride_id_app_sent_at_created
 ALTER TABLE chair_locations ADD INDEX IX_chair_locations_chair_id_created_at (chair_id, created_at);
 ALTER TABLE chair_locations ADD INDEX IX_chair_locations_chair_id_id (chair_id, id);
 ALTER TABLE rides ADD INDEX IX_rides_chair_id_updated_at (chair_id, updated_at);
+ALTER TABLE rides ADD INDEX IX_rides_chair_id_created_at (chair_id, created_at);
+ALTER TABLE rides ADD INDEX IX_rides_user_id_created_at (user_id, created_at);
 ALTER TABLE rides ADD INDEX IX_rides_evaluation_chair_id_updated_at (evaluation, chair_id, updated_at);
 ALTER TABLE chairs ADD INDEX IX_chairs_access_token (access_token);
 ALTER TABLE chairs ADD INDEX IX_chairs_owner_id (owner_id);
+ALTER TABLE coupons ADD INDEX IX_coupons_code (code);
 
 DROP TABLE IF EXISTS chair_locations_total_distance;
 CREATE TABLE chair_locations_total_distance
