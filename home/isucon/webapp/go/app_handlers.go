@@ -966,6 +966,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 							ON r.chair_id = c.id
 							AND r.evaluation IS NULL
 			WHERE r.id IS NULL
+			AND c.is_active = TRUE
 		`, // TODO: ChairMapを使う
 	)
 	if err != nil {
