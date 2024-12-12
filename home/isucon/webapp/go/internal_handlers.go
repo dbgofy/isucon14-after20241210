@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"github.com/davecgh/go-spew/spew"
 	"log/slog"
 	"net/http"
+	"slices"
 	"time"
 )
 
@@ -19,13 +21,15 @@ func matching() {
 	defer close(matchingChannel)
 	matchingInit = make(chan struct{})
 
-	chairIDs := []string{}
-	if err := db.SelectContext(ctx, &chairIDs, `SELECT chairs.id FROM chairs LEFT JOIN rides ON chairs.id = rides.chair_id AND rides.evaluation IS NULL WHERE is_active = TRUE AND rides.id IS NULL`); err != nil {
-		slog.Error("failed to get chair ids", "error", err)
-		return
-	}
-	for _, chairID := range chairIDs {
-		matchingChannel <- chairID
+	{
+		chairIDs := []string{}
+		if err := db.SelectContext(ctx, &chairIDs, `SELECT chairs.id FROM chairs LEFT JOIN rides ON chairs.id = rides.chair_id AND rides.evaluation IS NULL WHERE is_active = TRUE AND rides.id IS NULL`); err != nil {
+			slog.Error("failed to get chair ids", "error", err)
+			return
+		}
+		for _, chairID := range chairIDs {
+			matchingChannel <- chairID
+		}
 	}
 
 	slog.Info("matching start")
@@ -59,31 +63,76 @@ func matching() {
 				continue
 			}
 			ride := rides[0]
-			// 3秒以上待っているrideがある場合は、最も待っているrideを選択
-			if !ride.CreatedAt.Add(3 * time.Second).Before(time.Now()) {
+			// 3秒以上待っているrideがある場合は、今あるchairを全て取り出して、うまくマッチングさせる
+			if ride.CreatedAt.Add(3 * time.Second).Before(time.Now()) {
+				chairIDs := make([]string, 0, len(rides))
+				chairIDs = append(chairIDs, chairID)
+			LOOP:
+				for {
+					select {
+					case cID := <-matchingChannel:
+						chairIDs = append(chairIDs, cID)
+					default:
+						break LOOP // ラベル付きのbreakを使う
+					}
+				}
+				chairLocations := make([]*ChairLocation, 0, len(chairIDs))
+				for _, cID := range chairIDs {
+					chairLocations = append(chairLocations, GetChairLocation(cID))
+				}
+				for _, r := range rides {
+					ride = r
+					chairLocation = chairLocations[0]
+					selectChairLocationIndex := 0
+					for _, cl := range chairLocations {
+						if abs(ride.PickupLatitude-chairLocation.Latitude)+abs(ride.PickupLongitude-chairLocation.Longitude) > abs(r.PickupLatitude-cl.Latitude)+abs(r.PickupLongitude-cl.Longitude) {
+							ride = r
+							chairLocation = cl
+							selectChairLocationIndex = 0
+						}
+					}
+
+					err := matchingComp(ctx, ride, chairID)
+					if err != nil {
+						slog.Error("failed to matching", "error", err)
+						break
+					}
+
+					slices.Delete(chairLocations, selectChairLocationIndex, selectChairLocationIndex+1)
+				}
+			} else {
 				for _, r := range rides {
 					if abs(ride.PickupLatitude-chairLocation.Latitude)+abs(ride.PickupLongitude-chairLocation.Longitude) > abs(r.PickupLatitude-chairLocation.Latitude)+abs(r.PickupLongitude-chairLocation.Longitude) {
 						ride = r
 					}
 				}
 			}
-			ride.ChairID = sql.NullString{String: chairID, Valid: true}
-			if _, err := db.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ? AND chair_id IS NULL", chairID, ride.ID); err != nil {
-				slog.Error("failed to update ride", "error", err)
-				continue
-			}
-			err := sendAppGetNotificationChannel(ctx, nil, "MATCHING", &ride)
+			err := matchingComp(ctx, ride, chairID)
 			if err != nil {
-				slog.Error("failed to send notification", "error", err)
-				continue
-			}
-			err = sendChairGetNotificationChannel(ctx, "MATCHING", &ride, nil)
-			if err != nil {
-				slog.Error("failed to send notification", "error", err)
+				slog.Error("failed to matching", "error", err)
 				continue
 			}
 		}
 	}
+}
+
+func matchingComp(ctx context.Context, ride Ride, chairID string) error {
+	ride.ChairID = sql.NullString{String: chairID, Valid: true}
+	if _, err := db.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ? AND chair_id IS NULL", chairID, ride.ID); err != nil {
+		slog.Error("failed to update ride", "error", err)
+		return fmt.Errorf("failed to update ride: %w", err)
+	}
+	err := sendAppGetNotificationChannel(ctx, nil, "MATCHING", &ride)
+	if err != nil {
+		slog.Error("failed to send notification", "error", err)
+		return fmt.Errorf("failed to send notification: %w", err)
+	}
+	err = sendChairGetNotificationChannel(ctx, "MATCHING", &ride, nil)
+	if err != nil {
+		slog.Error("failed to send notification", "error", err)
+		return fmt.Errorf("failed to send notification: %w", err)
+	}
+	return nil
 }
 
 // このAPIをインスタンス内から一定間隔で叩かせることで、椅子とライドをマッチングさせる
