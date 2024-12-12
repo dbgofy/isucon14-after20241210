@@ -45,7 +45,7 @@ func matching() {
 			if len(rides) == 0 {
 				matchingChannel <- chairID
 				time.Sleep(1 * time.Second)
-				slog.Info("no rides")
+				slog.Info("no rides.")
 				continue
 			}
 			chairLocation := GetChairLocation(chairID)
