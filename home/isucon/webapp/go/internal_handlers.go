@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"github.com/davecgh/go-spew/spew"
 	"log/slog"
 	"net/http"
 	"time"
@@ -10,6 +9,7 @@ import (
 
 // chairIDを入れる
 var matchingChannel chan string
+var matchingInit chan struct{}
 
 func matching() {
 	ctx := context.Background()
@@ -21,7 +21,6 @@ func matching() {
 		slog.Error("failed to get chair ids", "error", err)
 		return
 	}
-	spew.Dump(chairIDs)
 	for _, chairID := range chairIDs {
 		matchingChannel <- chairID
 	}
@@ -31,6 +30,10 @@ func matching() {
 	for {
 		slog.Info("matching loop")
 		select {
+		case <-matchingInit:
+			slog.Info("matching init")
+			close(matchingChannel)
+			matchingChannel = make(chan string, 1000)
 		case chairID := <-matchingChannel:
 			slog.Info("matching", "chair_id", chairID)
 			chair := GetChair(chairID)
@@ -69,7 +72,6 @@ func matching() {
 				slog.Error("failed to send notification", "error", err)
 				continue
 			}
-
 		}
 	}
 }

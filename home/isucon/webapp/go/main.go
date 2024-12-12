@@ -152,6 +152,8 @@ func setup() http.Handler {
 		}
 	}
 
+	go matching()
+
 	mux := chi.NewRouter()
 	mux.Use(middleware.Logger)
 	mux.Use(middleware.Recoverer)
@@ -274,7 +276,8 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	appGetNotificationChannel = sync.Map{}
-	go matching()
+
+	matchingInit <- struct{}{}
 
 	writeJSON(w, http.StatusOK, postInitializeResponse{Language: "go"})
 }
