@@ -419,6 +419,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 				slog.Error("failed to marshal response", "error", err)
 				return
 			}
+			spew.Dump(res)
 			if _, err := w.Write(res); err != nil {
 				slog.Error("failed to write response", "error", err)
 			}
