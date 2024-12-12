@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/davecgh/go-spew/spew"
 	"log/slog"
 	"net/http"
 	"time"
@@ -20,6 +21,7 @@ func matching() {
 		slog.Error("failed to get chair ids", "error", err)
 		return
 	}
+	spew.Dump(chairIDs)
 	for _, chairID := range chairIDs {
 		matchingChannel <- chairID
 	}
