@@ -794,7 +794,7 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 		select {
 		case response := <-c:
 			// 順番が前後しちゃった場合はもう一度キューに詰め直す
-			if status == "" || status == "COMPLETED" {
+			if status == "COMPLETED" {
 				if response.Status != "MATCHING" {
 					slog.Info("status is not matching", "status", response.Status)
 					c <- response
