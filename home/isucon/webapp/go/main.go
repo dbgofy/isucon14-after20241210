@@ -85,6 +85,7 @@ func ListChairLocations(key string) (cls []*ChairLocation) {
 func main() {
 	mux := setup()
 	//slog.Info("Listening on :8080")
+	slog.SetLogLoggerLevel(1000)
 	http.ListenAndServe(":8080", mux)
 }
 
