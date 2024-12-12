@@ -762,8 +762,8 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	status := ""
 	if ride != nil {
-		status := ""
 		yetSentRideStatus := RideStatus{}
 		if err := db.GetContext(ctx, &yetSentRideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ? AND app_sent_at IS NULL ORDER BY created_at ASC LIMIT 1`, ride.ID); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -793,6 +793,40 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case response := <-c:
+			// 順番が前後しちゃった場合はもう一度キューに詰め直す
+			if status == "" || status == "COMPLETED" {
+				if response.Status != "MATCHING" {
+					c <- response
+					continue
+				}
+			} else if status == "MATCHING" {
+				if response.Status != "ENROUTE" {
+					c <- response
+					continue
+				}
+			} else if status == "ENROUTE" {
+				if response.Status != "PICKUP" {
+					c <- response
+					continue
+				}
+			} else if status == "PICKUP" {
+				if response.Status != "CARRYING" {
+					c <- response
+					continue
+				}
+			} else if status == "CARRYING" {
+				if response.Status != "ARRIVED" {
+					c <- response
+					continue
+				}
+			} else if status == "ARRIVED" {
+				if response.Status != "COMPLETED" {
+					c <- response
+					continue
+				}
+			}
+
+			status = response.Status
 			w.Write([]byte("data: "))
 			if err := json.NewEncoder(w).Encode(response); err != nil {
 				writeError(w, http.StatusInternalServerError, err)
