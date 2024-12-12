@@ -31,7 +31,6 @@ func matching() {
 
 	slog.Info("matching start")
 	defer slog.Info("matching end")
-	rides := []Ride{}
 	for {
 		slog.Info("matching loop")
 		select {
@@ -44,11 +43,10 @@ func matching() {
 			if !chair.IsActive {
 				continue
 			}
-			if len(rides) == 0 {
-				if err := db.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
-					slog.Error("failed to get rides", "error", err)
-					return
-				}
+			rides := []Ride{}
+			if err := db.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
+				slog.Error("failed to get rides", "error", err)
+				return
 			}
 			if len(rides) == 0 {
 				matchingChannel <- chairID
@@ -63,7 +61,8 @@ func matching() {
 			}
 			ride := rides[0]
 			rideIndex := 0
-			if ride.CreatedAt.Add(3 * time.Second).Before(time.Now()) { // 3秒以上待っているrideがある場合は、最も待っているrideを選択
+			// 1秒以上待っているrideがある場合は、最も待っているrideを選択
+			if ride.CreatedAt.Add(1 * time.Second).Before(time.Now()) {
 				for index, r := range rides {
 					if abs(ride.PickupLatitude-chairLocation.Latitude)+abs(ride.PickupLongitude-chairLocation.Longitude) > abs(r.PickupLatitude-chairLocation.Latitude)+abs(r.PickupLongitude-chairLocation.Longitude) {
 						ride = r
