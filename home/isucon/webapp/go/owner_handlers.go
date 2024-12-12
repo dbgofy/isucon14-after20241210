@@ -128,7 +128,15 @@ func ownerGetSales(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	models := []ChairModel{}
+	if err = tx.SelectContext(ctx, &models, "SELECT * FROM chair_models"); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
 	modelSalesByModel := map[string]int{}
+	for _, model := range models {
+		modelSalesByModel[model.Name] = 0
+	}
 	modelSalesByChair := map[string]int{}
 	for _, ride := range rides {
 		chair := chairMap[ride.ChairID.String]
