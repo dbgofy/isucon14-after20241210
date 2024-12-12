@@ -23,7 +23,9 @@ func matching() {
 		matchingChannel <- chairID
 	}
 
+	slog.Info("matching start")
 	for {
+		slog.Info("matching loop")
 		select {
 		case chairID := <-matchingChannel:
 			slog.Info("matching", "chair_id", chairID)
