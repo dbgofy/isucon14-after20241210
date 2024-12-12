@@ -267,7 +267,10 @@ type chairGetNotificationResponseData struct {
 var chairGetNotificationChannel = sync.Map{}
 
 func sendChairGetNotificationChannel(ctx context.Context, status string, ride *Ride, user *User) error {
-	c, ok := chairGetNotificationChannel.Load(ride.ID)
+	if !ride.ChairID.Valid {
+		return nil
+	}
+	c, ok := chairGetNotificationChannel.Load(ride.ChairID.String)
 	if !ok {
 		return nil
 	}
@@ -346,8 +349,6 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 		} else {
 			status = yetSentRideStatus.Status
 		}
-
-		chairGetNotificationChannel.Store(ride.ID, c)
 
 		go func() {
 			err := sendChairGetNotificationChannel(ctx, status, ride, nil)

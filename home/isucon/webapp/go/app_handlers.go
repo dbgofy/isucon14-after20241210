@@ -675,7 +675,7 @@ type appGetNotificationResponseChairStats struct {
 var appGetNotificationChannel = sync.Map{}
 
 func sendAppGetNotificationChannel(ctx context.Context, tx *sqlx.Tx, status string, ride *Ride) error {
-	c, ok := appGetNotificationChannel.Load(ride.ID)
+	c, ok := appGetNotificationChannel.Load(ride.UserID)
 	if !ok {
 		return nil
 	}
@@ -781,8 +781,6 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 		} else {
 			status = yetSentRideStatus.Status
 		}
-
-		appGetNotificationChannel.Store(ride.ID, c)
 
 		go func() {
 			err := sendAppGetNotificationChannel(ctx, nil, status, ride)
