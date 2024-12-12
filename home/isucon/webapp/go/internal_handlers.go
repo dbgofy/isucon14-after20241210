@@ -99,18 +99,16 @@ func matching() {
 					if len(chairLocations) == 0 {
 						break
 					}
-					ride = r
 					chairLocation := chairLocations[0]
 					selectChairLocationIndex := 0
 					for index, cl := range chairLocations {
-						if abs(ride.PickupLatitude-chairLocation.Latitude)+abs(ride.PickupLongitude-chairLocation.Longitude) > abs(r.PickupLatitude-cl.Latitude)+abs(r.PickupLongitude-cl.Longitude) {
-							ride = r
+						if abs(r.PickupLatitude-chairLocation.Latitude)+abs(r.PickupLongitude-chairLocation.Longitude) > abs(r.PickupLatitude-cl.Latitude)+abs(r.PickupLongitude-cl.Longitude) {
 							chairLocation = cl
 							selectChairLocationIndex = index
 						}
 					}
 
-					err := matchingComp(ctx, ride, chairLocation.ChairID)
+					err := matchingComp(ctx, r, chairLocation.ChairID)
 					if err != nil {
 						slog.Error("failed to matching", "error", err)
 						break
