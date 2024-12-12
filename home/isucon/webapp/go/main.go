@@ -66,7 +66,7 @@ func GetChairLocation(key string) *ChairLocation {
 
 func GetTotalDistance(chairID string) int {
 	if v, ok := ChairTotalDistanceMap.Load(chairID); ok {
-		return v.(*ChairTotalDistance).Distance
+		return v.(*ChairTotalDistance).TotalDistance
 	}
 	return 0
 }
