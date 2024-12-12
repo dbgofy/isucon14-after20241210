@@ -767,7 +767,6 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 		yetSentRideStatus := RideStatus{}
 		if err := db.GetContext(ctx, &yetSentRideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ? AND app_sent_at IS NULL ORDER BY created_at ASC LIMIT 1`, ride.ID); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				slog.Info("no ride_status", "ride_id", ride.ID)
 				status, err = getLatestRideStatus(ctx, db, ride.ID)
 				if err != nil {
 					writeError(w, http.StatusInternalServerError, err)
