@@ -40,6 +40,16 @@ func matching() {
 		case <-matchingInit:
 			slog.Info("matching init")
 			matchingChannel = make(chan string, 1000)
+			{
+				chairIDs := []string{}
+				if err := db.SelectContext(ctx, &chairIDs, `SELECT chairs.id FROM chairs LEFT JOIN rides ON chairs.id = rides.chair_id AND rides.evaluation IS NULL WHERE is_active = TRUE AND rides.id IS NULL`); err != nil {
+					slog.Error("failed to get chair ids", "error", err)
+					return
+				}
+				for _, chairID := range chairIDs {
+					matchingChannel <- chairID
+				}
+			}
 		case chairID := <-matchingChannel:
 			slog.Info("matching", "chair_id", chairID)
 			chair := GetChair(chairID)
