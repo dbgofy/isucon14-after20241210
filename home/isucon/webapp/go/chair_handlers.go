@@ -268,14 +268,16 @@ var chairGetNotificationChannel = sync.Map{}
 
 func sendChairGetNotificationChannel(ctx context.Context, status string, ride *Ride, user *User) error {
 	if !ride.ChairID.Valid {
-		return nil
+		return fmt.Errorf("ride.ChairID is not valid")
 	}
 	c, ok := chairGetNotificationChannel.Load(ride.ChairID.String)
 	if !ok {
+		slog.Info("no channel", "chair_id", ride.ChairID)
 		return nil
 	}
 	channel, ok := c.(chan chairGetNotificationResponseData)
 	if !ok {
+		slog.Info("invalid channel", "chair_id", ride.ChairID)
 		return nil
 	}
 	if user == nil {
