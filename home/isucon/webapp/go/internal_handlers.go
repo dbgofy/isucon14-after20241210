@@ -107,6 +107,9 @@ func matching() {
 
 					slices.Delete(chairLocations, selectChairLocationIndex, selectChairLocationIndex+1)
 				}
+				for _, cl := range chairLocations {
+					matchingChannel <- cl.ChairID
+				}
 			} else {
 				chairLocation := GetChairLocation(chairID)
 				if chairLocation == nil {
