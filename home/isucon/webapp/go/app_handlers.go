@@ -782,14 +782,12 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 			status = yetSentRideStatus.Status
 		}
 
-		go func() {
-			err := sendAppGetNotificationChannel(ctx, nil, status, ride)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				slog.Error("failed to send notification", "error", err)
-				return
-			}
-		}()
+		err := sendAppGetNotificationChannel(ctx, nil, status, ride)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("failed to send notification", "error", err)
+			return
+		}
 	}
 
 	for {

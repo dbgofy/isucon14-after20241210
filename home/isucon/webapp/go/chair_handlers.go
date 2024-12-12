@@ -350,14 +350,12 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 			status = yetSentRideStatus.Status
 		}
 
-		go func() {
-			err := sendChairGetNotificationChannel(ctx, status, ride, nil)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				slog.Error("failed to send notification", "error", err)
-				return
-			}
-		}()
+		err := sendChairGetNotificationChannel(ctx, status, ride, nil)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("failed to send notification", "error", err)
+			return
+		}
 	}
 
 	for {
