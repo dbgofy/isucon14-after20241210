@@ -7,14 +7,13 @@ ALTER TABLE rides ADD INDEX IX_rides_evaluation_chair_id_updated_at (evaluation,
 ALTER TABLE chairs ADD INDEX IX_chairs_access_token (access_token);
 ALTER TABLE chairs ADD INDEX IX_chairs_owner_id (owner_id);
 
-DROP TABLE IF EXISTS chair_locations_minus_distance;
-CREATE TABLE chair_locations_minus_distance
+DROP TABLE IF EXISTS chair_locations_total_distance;
+CREATE TABLE chair_locations_total_distance
 (
-  id         VARCHAR(26) NOT NULL,
-  chair_id   VARCHAR(26) NOT NULL COMMENT '椅子ID',
-  distance   LONG        NOT NULL COMMENT 'マイナスされた距離',
-  PRIMARY KEY (id)
+  chair_id         VARCHAR(26) NOT NULL COMMENT '椅子ID',
+  total_distance   LONG        NOT NULL COMMENT '合計移動距離距離',
+  PRIMARY KEY (chair_id)
 )
-  COMMENT = '椅子のマイナスされた距離テーブル';
+  COMMENT = '合計移動距離距離テーブル';
 
-ALTER TABLE chair_locations_minus_distance ADD INDEX IX_chair_locations_minus_distance_chair_id (chair_id);
+ALTER TABLE chair_locations_total_distance ADD INDEX IX_chair_locations_total_distance_chair_id (chair_id);

@@ -30,7 +30,6 @@ type ChairLocation struct {
 }
 
 type ChairTotalDistance struct {
-	ID       string `db:"id"`
 	ChairID  string `db:"chair_id"`
 	Distance int    `db:"distance"`
 }

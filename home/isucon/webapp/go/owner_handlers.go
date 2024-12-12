@@ -225,25 +225,7 @@ WHERE owner_id = ?
 
 	totalDistanceByChairID := make(map[string]int)
 	for _, c := range chairs {
-		locations := ListChairLocations(c.ID)
-		var (
-			prev     *ChairLocation
-			distance int
-		)
-		for _, l := range locations {
-			if prev == nil {
-				prev = l
-				continue
-			}
-
-			lat := abs(l.Latitude - prev.Latitude)
-
-			lon := abs(l.Longitude - prev.Longitude)
-
-			distance += lat + lon
-			prev = l
-		}
-		totalDistanceByChairID[c.ID] = distance
+		totalDistanceByChairID[c.ID] = GetTotalDistance(c.ID)
 	}
 
 	res := ownerGetChairResponse{}

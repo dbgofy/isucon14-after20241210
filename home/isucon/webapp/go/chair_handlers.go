@@ -104,7 +104,9 @@ func chairPostActivity(w http.ResponseWriter, r *http.Request) {
 	}
 	chair.IsActive = req.IsActive
 	UpdateChair(chair, nil)
-	matchingChannel <- chair.ID
+	if req.IsActive {
+		matchingChannel <- chair.ID
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -171,10 +173,11 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if prevLocation != nil {
+		addDistance := abs(prevLocation.Longitude-location.Longitude) + abs(prevLocation.Latitude-location.Latitude)
 		_, err = tx.ExecContext(
 			ctx,
-			"INSERT INTO chair_locations_minus_distance (id, chair_id, distance) VALUES (?, ?, ?)",
-			ulid.Make().String(), chair.ID, abs(prevLocation.Longitude-location.Longitude)+abs(prevLocation.Latitude-location.Latitude),
+			"INSERT INTO chair_locations_total_distance (chair_id, total_distance) VALUES (?, ?) ON DUPLICATE KEY UPDATE total_distance = total_distance + ?",
+			chair.ID, addDistance, addDistance,
 		)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)

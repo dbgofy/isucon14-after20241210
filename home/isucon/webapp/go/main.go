@@ -9,12 +9,9 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"sort"
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/oklog/ulid/v2"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -28,6 +25,7 @@ var db *sqlx.DB
 
 var ChairMap = sync.Map{}
 var ChairLocationMap = sync.Map{}
+var ChairTotalDistanceMap = sync.Map{}
 
 func UpdateChair(chair *Chair, updatedAt *time.Time) {
 	if updatedAt != nil {
@@ -42,6 +40,10 @@ func UpdateChair(chair *Chair, updatedAt *time.Time) {
 func InsertChairLocation(cl *ChairLocation) {
 	ChairLocationMap.Store(cl.ID, cl)
 	ChairLocationMap.Store(cl.ChairID, cl)
+}
+
+func InsertChairTotalDistance(ctd *ChairTotalDistance) {
+	ChairTotalDistanceMap.Store(ctd.ChairID, ctd)
 }
 
 // GetChair
@@ -62,24 +64,11 @@ func GetChairLocation(key string) *ChairLocation {
 	return nil
 }
 
-// ListChairLocations
-// ChairID をキーにして ChairLocation list を取得する
-func ListChairLocations(key string) (cls []*ChairLocation) {
-	ChairLocationMap.Range(func(k, v any) bool {
-		if key == k.(string) {
-			return true
-		}
-
-		cl := v.(*ChairLocation)
-		if cl.ChairID == key {
-			cls = append(cls, cl)
-		}
-		return true
-	})
-	sort.Slice(cls, func(i, j int) bool {
-		return cls[i].ID < cls[j].ID
-	})
-	return
+func GetTotalDistance(chairID string) int {
+	if v, ok := ChairTotalDistanceMap.Load(chairID); ok {
+		return v.(*ChairTotalDistance).Distance
+	}
+	return 0
 }
 
 func main() {
@@ -150,6 +139,17 @@ func setup() http.Handler {
 		}
 		for _, cl := range data {
 			InsertChairLocation(&cl)
+		}
+	}
+
+	{
+		ChairTotalDistanceMap = sync.Map{}
+		data := []ChairTotalDistance{}
+		if err := db.Select(&data, "SELECT * FROM chair_locations_total_distance ORDER BY chair_id"); err != nil {
+			panic(err)
+		}
+		for _, ctd := range data {
+			InsertChairTotalDistance(&ctd)
 		}
 	}
 
@@ -237,33 +237,16 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	prevChairLocations := make(map[string]ChairLocation)
-	distanceByChairID := make(map[string]int)
 	for _, cl := range chairLocations {
 		InsertChairLocation(&cl)
-		prevChairLocation, ok := prevChairLocations[cl.ChairID]
-		prevChairLocations[cl.ChairID] = cl
-		if !ok {
-			continue
-		}
-		distanceByChairID[cl.ChairID] += abs(cl.Latitude-prevChairLocation.Latitude) + abs(cl.Longitude-prevChairLocation.Longitude)
 	}
-	chairTotalDistances := make([]ChairTotalDistance, 0, len(distanceByChairID))
-	for chairID, distance := range distanceByChairID {
-		chairTotalDistances = append(chairTotalDistances, ChairTotalDistance{
-			ID:       ulid.Make().String(),
-			ChairID:  chairID,
-			Distance: distance,
-		})
-	}
-	_, err := db.NamedExecContext(
-		ctx,
-		"INSERT INTO chair_locations_minus_distance (id, chair_id, distance) VALUES (:id, :chair_id, :distance)",
-		chairTotalDistances,
-	)
-	if err != nil {
+	chairTotalDistances := []ChairTotalDistance{}
+	if err := db.Select(&chairTotalDistances, "SELECT * FROM chair_locations_total_distance ORDER BY chair_id"); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
+	}
+	for _, chairTotalDistance := range chairTotalDistances {
+		InsertChairTotalDistance(&chairTotalDistance)
 	}
 
 	ChairMap = sync.Map{}
