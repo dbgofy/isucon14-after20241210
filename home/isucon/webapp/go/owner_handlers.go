@@ -102,15 +102,8 @@ func ownerGetSales(w http.ResponseWriter, r *http.Request) {
 
 	owner := r.Context().Value("owner").(*Owner)
 
-	tx, err := db.Beginx()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer tx.Rollback()
-
 	chairs := []Chair{}
-	if err := tx.SelectContext(ctx, &chairs, "SELECT * FROM chairs WHERE owner_id = ?", owner.ID); err != nil {
+	if err := db.SelectContext(ctx, &chairs, "SELECT * FROM chairs WHERE owner_id = ?", owner.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -124,7 +117,7 @@ func ownerGetSales(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rides := []Ride{}
-	if err = tx.SelectContext(ctx, &rides, "SELECT rides.* FROM rides INNER JOIN chairs ON rides.chair_id = chairs.id WHERE chairs.owner_id = ? AND evaluation IS NOT NULL AND rides.updated_at BETWEEN ? AND ? + INTERVAL 999 MICROSECOND", owner.ID, since, until); err != nil {
+	if err := db.SelectContext(ctx, &rides, "SELECT rides.* FROM rides INNER JOIN chairs ON rides.chair_id = chairs.id WHERE chairs.owner_id = ? AND evaluation IS NOT NULL AND rides.updated_at BETWEEN ? AND ? + INTERVAL 999 MICROSECOND", owner.ID, since, until); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
