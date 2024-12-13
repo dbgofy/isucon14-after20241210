@@ -102,6 +102,10 @@ func matching() {
 					if len(chairLocations) == 0 {
 						break
 					}
+					// 1s以下のrideは無視
+					if r.CreatedAt.Add(1 * time.Second).After(time.Now()) {
+						break
+					}
 					chairLocation := chairLocations[0]
 					selectChairLocationIndex := 0
 					for index, cl := range chairLocations {
