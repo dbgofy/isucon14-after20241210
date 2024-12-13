@@ -21,7 +21,7 @@ type paymentGatewayGetPaymentsResponseOne struct {
 	Status string `json:"status"`
 }
 
-func requestPaymentGatewayPostPayment(ctx context.Context, paymentGatewayURL string, token string, param *paymentGatewayPostPaymentRequest, retrieveRidesOrderByCreatedAtAsc func() ([]Ride, error)) error {
+func requestPaymentGatewayPostPayment(ctx context.Context, paymentGatewayURL string, token string, param *paymentGatewayPostPaymentRequest, retrieveRidesOrderByCreatedAtAsc func() (int, error)) error {
 	b, err := json.Marshal(param)
 	if err != nil {
 		return err
@@ -68,13 +68,13 @@ func requestPaymentGatewayPostPayment(ctx context.Context, paymentGatewayURL str
 					return err
 				}
 
-				rides, err := retrieveRidesOrderByCreatedAtAsc()
+				ridesCount, err := retrieveRidesOrderByCreatedAtAsc()
 				if err != nil {
 					return err
 				}
 
-				if len(rides) != len(payments) {
-					return fmt.Errorf("unexpected number of payments: %d != %d. %w", len(rides), len(payments), erroredUpstream)
+				if ridesCount != len(payments) {
+					return fmt.Errorf("unexpected number of payments: %d != %d. %w", ridesCount, len(payments), erroredUpstream)
 				}
 
 				return nil
