@@ -62,27 +62,18 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 初回登録キャンペーンのクーポンを付与
-	_, err = tx.ExecContext(
-		ctx,
-		"INSERT INTO coupons (user_id, code, discount) VALUES (?, ?, ?)",
-		userID, "CP_NEW2024", 3000,
-	)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-
 	// 招待コードを使った登録
 	if req.InvitationCode != nil && *req.InvitationCode != "" {
 		// 招待する側の招待数をチェック
-		var coupons []Coupon
-		err = tx.SelectContext(ctx, &coupons, "SELECT * FROM coupons WHERE code = ? FOR UPDATE", "INV_"+*req.InvitationCode)
+		couponCount := 0
+		err = tx.GetContext(ctx, &couponCount, "SELECT count(1) FROM coupons WHERE code = ?", "INV_"+*req.InvitationCode)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
+			if !errors.Is(err, sql.ErrNoRows) {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
 		}
-		if len(coupons) >= 3 {
+		if couponCount >= 3 {
 			writeError(w, http.StatusBadRequest, errors.New("この招待コードは使用できません。"))
 			return
 		}
@@ -102,18 +93,21 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 		// 招待クーポン付与
 		_, err = tx.ExecContext(
 			ctx,
-			"INSERT INTO coupons (user_id, code, discount) VALUES (?, ?, ?)",
+			"INSERT INTO coupons (user_id, code, discount) VALUES (?, ?, ?), (?, CONCAT(?, '_', FLOOR(UNIX_TIMESTAMP(NOW(3))*1000)), ?), (?, ?, ?)",
 			userID, "INV_"+*req.InvitationCode, 1500,
+			inviter.ID, "RWD_"+*req.InvitationCode, 1000,
+			userID, "CP_NEW2024", 3000, // 初回登録キャンペーンのクーポンを付与
 		)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
-		// 招待した人にもRewardを付与
+	} else {
+		// 初回登録キャンペーンのクーポンを付与
 		_, err = tx.ExecContext(
 			ctx,
-			"INSERT INTO coupons (user_id, code, discount) VALUES (?, CONCAT(?, '_', FLOOR(UNIX_TIMESTAMP(NOW(3))*1000)), ?)",
-			inviter.ID, "RWD_"+*req.InvitationCode, 1000,
+			"INSERT INTO coupons (user_id, code, discount) VALUES (?, ?, ?)",
+			userID, "CP_NEW2024", 3000,
 		)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
