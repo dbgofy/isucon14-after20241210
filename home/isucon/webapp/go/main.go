@@ -154,6 +154,11 @@ func setup() http.Handler {
 	}
 
 	go matching()
+	{
+		if err := db.Get(&paymentGatewayURL, "SELECT value FROM settings WHERE name = 'payment_gateway_url'"); err != nil {
+			panic(err)
+		}
+	}
 
 	mux := chi.NewRouter()
 	//mux.Use(middleware.Logger)
@@ -231,6 +236,7 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	paymentGatewayURL = req.PaymentServer
 
 	chairLocations := []ChairLocation{}
 	if err := db.SelectContext(ctx, &chairLocations, "SELECT * FROM chair_locations ORDER BY created_at"); err != nil {
