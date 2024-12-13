@@ -53,6 +53,9 @@ func matching() {
 		case chairID := <-matchingChannel:
 			slog.Info("matching", "chair_id", chairID)
 			chair := GetChair(chairID)
+			if chair == nil {
+				continue
+			}
 			if !chair.IsActive {
 				continue
 			}
