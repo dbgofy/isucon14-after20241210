@@ -602,7 +602,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var ridesCount int
-	if err = tx.SelectContext(ctx, &ridesCount, `SELECT count(1) FROM rides WHERE user_id = ?`, ride.UserID); err != nil {
+	if err = tx.GetContext(ctx, &ridesCount, `SELECT count(1) FROM rides WHERE user_id = ?`, ride.UserID); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
