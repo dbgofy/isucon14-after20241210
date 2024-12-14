@@ -426,6 +426,7 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	matchingRideChannel <- ride
 
 	writeJSON(w, http.StatusAccepted, &appPostRidesResponse{
 		RideID: rideID,
@@ -612,7 +613,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		slog.Error("failed to send notification", "error", err)
 		return
 	}
-	matchingChannel <- ride.ChairID.String
+	matchingChairChannel <- ride.ChairID.String
 
 	if err := tx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, err)

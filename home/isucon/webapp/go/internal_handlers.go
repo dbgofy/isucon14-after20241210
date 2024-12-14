@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -13,13 +12,18 @@ import (
 )
 
 // chairIDを入れる
-var matchingChannel chan string
+var matchingChairChannel chan string
+
+// rideを入れる
+var matchingRideChannel chan Ride
 var matchingInit chan struct{}
 
 func matching() {
 	ctx := context.Background()
-	matchingChannel = make(chan string, 1000)
-	defer close(matchingChannel)
+	matchingChairChannel = make(chan string, 1000)
+	defer close(matchingChairChannel)
+	matchingRideChannel = make(chan Ride, 1000)
+	defer close(matchingRideChannel)
 	matchingInit = make(chan struct{})
 
 	{
@@ -29,7 +33,7 @@ func matching() {
 			return
 		}
 		for _, chairID := range chairIDs {
-			matchingChannel <- chairID
+			matchingChairChannel <- chairID
 		}
 	}
 
@@ -45,7 +49,11 @@ func matching() {
 		}
 	}
 
-	rides := []Ride{}
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	waitingChairIDs := []string{}
+	waitingRides := []Ride{}
 	slog.Info("matching start")
 	defer slog.Info("matching end")
 	for {
@@ -53,135 +61,72 @@ func matching() {
 		select {
 		case <-matchingInit:
 			slog.Info("matching init")
-			matchingChannel = make(chan string, 1000)
+			matchingChairChannel = make(chan string, 1000)
+			matchingRideChannel = make(chan Ride, 1000)
 			{
-				chairIDs := []string{}
-				if err := db.SelectContext(ctx, &chairIDs, `SELECT chairs.id FROM chairs LEFT JOIN rides ON chairs.id = rides.chair_id AND rides.evaluation IS NULL WHERE is_active = TRUE AND rides.id IS NULL`); err != nil {
+				waitingChairIDs = []string{}
+				if err := db.SelectContext(ctx, &waitingChairIDs, `SELECT chairs.id FROM chairs LEFT JOIN rides ON chairs.id = rides.chair_id AND rides.evaluation IS NULL WHERE is_active = TRUE AND rides.id IS NULL`); err != nil {
 					slog.Error("failed to get chair ids", "error", err)
 					continue
 				}
-				for _, chairID := range chairIDs {
-					matchingChannel <- chairID
-				}
-			}
-		case chairID := <-matchingChannel:
-			slog.Info("matching", "chair_id", chairID)
-			chair := GetChair(chairID)
-			if chair == nil {
-				continue
-			}
-			if !chair.IsActive {
-				continue
-			}
-			if len(rides) < 10 {
-				rides = []Ride{}
-				if err := db.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
+				waitingRides = []Ride{}
+				if err := db.SelectContext(ctx, &waitingRides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
 					slog.Error("failed to get rides", "error", err)
 					continue
 				}
 			}
-			if len(rides) == 0 {
-				matchingChannel <- chairID
-				time.Sleep(1 * time.Second)
-				slog.Info("no rides.")
-				continue
+		case chairID := <-matchingChairChannel:
+			waitingChairIDs = append(waitingChairIDs, chairID)
+		case ride := <-matchingRideChannel:
+			waitingRides = append(waitingRides, ride)
+		case <-ticker.C:
+			type expectedScoreType struct {
+				ride          Ride
+				chairLocation *ChairLocation
+				expectedScore float64
 			}
-			ride := rides[0]
-			// 3秒以上待っているrideがある場合は、今あるchairを全て取り出して、うまくマッチングさせる
-			if ride.CreatedAt.Add(3 * time.Second).Before(time.Now()) {
-				chairIDs := make([]string, 0, len(rides))
-				chairIDs = append(chairIDs, chairID)
-			LOOP:
-				for {
-					select {
-					case cID := <-matchingChannel:
-						chairIDs = append(chairIDs, cID)
-					default:
-						break LOOP // ラベル付きのbreakを使う
-					}
-				}
-				chairLocations := make([]*ChairLocation, 0, len(chairIDs))
-				for _, cID := range chairIDs {
-					l := GetChairLocation(cID)
-					if l == nil {
-						matchingChannel <- cID
-						slog.Error("fail GetChairLocation", "chairID", cID)
-						continue
-					}
-					chairLocations = append(chairLocations, l)
-				}
-				if len(chairLocations) == 0 {
-					slog.Info("no chair locations")
-					continue
-				}
-				type expectedScoreType struct {
-					ride          Ride
-					chairLocation *ChairLocation
-					expectedScore float64
-				}
-				expectedScores := make([]expectedScoreType, 0, len(rides)*len(chairLocations))
-				for _, r := range rides {
-					for _, cl := range chairLocations {
-						expectedScores = append(expectedScores, expectedScoreType{
-							ride:          r,
-							chairLocation: cl,
-							expectedScore: calcExpectedScore(r, cl, chairModelByChairName[chair.Model].Speed),
-						})
-					}
-				}
-				sort.Slice(expectedScores, func(i, j int) bool {
-					return expectedScores[i].expectedScore > expectedScores[j].expectedScore
-				})
-				usedRideIDs := make(map[string]struct{})
-				usedChairIDs := make(map[string]struct{})
-				for _, es := range expectedScores {
-					if _, ok := usedRideIDs[es.ride.ID]; ok {
-						continue
-					}
-					if _, ok := usedChairIDs[es.chairLocation.ChairID]; ok {
-						continue
-					}
-					err := matchingComp(ctx, es.ride, es.chairLocation.ChairID)
-					if err != nil {
-						slog.Error("failed to matching", "error", err)
-						continue
-					}
-					usedRideIDs[es.ride.ID] = struct{}{}
-					usedChairIDs[es.chairLocation.ChairID] = struct{}{}
-				}
-
-				for _, cl := range chairLocations {
-					if _, ok := usedChairIDs[cl.ChairID]; !ok {
-						matchingChannel <- cl.ChairID
-					}
-				}
-				rides = slices.DeleteFunc(rides, func(ride Ride) bool {
-					_, ok := usedRideIDs[ride.ID]
-					return ok
-				})
-			} else {
+			expectedScores := make([]expectedScoreType, 0, len(waitingChairIDs)*len(waitingRides))
+			for _, chairID := range waitingChairIDs {
 				chairLocation := GetChairLocation(chairID)
-				if chairLocation == nil {
-					matchingChannel <- chairID
-					spew.Dump("fail GetChairLocation, chairID: ", chairID)
+				chair := GetChair(chairID)
+				for _, r := range waitingRides {
+					expectedScores = append(expectedScores, expectedScoreType{
+						ride:          r,
+						chairLocation: chairLocation,
+						expectedScore: calcExpectedScore(r, chairLocation, chairModelByChairName[chair.Model].Speed) +
+							float64((time.Now().Sub(r.CreatedAt)).Nanoseconds())*0.1, // うまく待ってる時間を考慮したい
+					})
+				}
+			}
+			sort.Slice(expectedScores, func(i, j int) bool {
+				return expectedScores[i].expectedScore > expectedScores[j].expectedScore
+			})
+			usedRideIDs := make(map[string]struct{})
+			usedChairIDs := make(map[string]struct{})
+			for _, es := range expectedScores {
+				if _, ok := usedRideIDs[es.ride.ID]; ok {
 					continue
 				}
-				selectedIndex := 0
-				selectedExpectedScore := -1.0
-				for i, r := range rides {
-					expectedScore := calcExpectedScore(r, chairLocation, chairModelByChairName[chair.Model].Speed)
-					if expectedScore > selectedExpectedScore {
-						selectedIndex = i
-						selectedExpectedScore = expectedScore
-					}
+				if _, ok := usedChairIDs[es.chairLocation.ChairID]; ok {
+					continue
 				}
-				err := matchingComp(ctx, ride, chairID)
+				err := matchingComp(ctx, es.ride, es.chairLocation.ChairID)
 				if err != nil {
 					slog.Error("failed to matching", "error", err)
 					continue
 				}
-				rides = slices.Delete(rides, selectedIndex, selectedIndex+1)
+				usedRideIDs[es.ride.ID] = struct{}{}
+				usedChairIDs[es.chairLocation.ChairID] = struct{}{}
 			}
+
+			waitingChairIDs = slices.DeleteFunc(waitingChairIDs, func(chairID string) bool {
+				_, ok := usedChairIDs[chairID]
+				return ok
+			})
+			waitingRides = slices.DeleteFunc(waitingRides, func(ride Ride) bool {
+				_, ok := usedRideIDs[ride.ID]
+				return ok
+			})
 		}
 	}
 }
