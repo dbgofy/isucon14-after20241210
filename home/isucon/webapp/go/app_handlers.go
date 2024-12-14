@@ -821,12 +821,12 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
 			}
-			_, err := db.ExecContext(ctx, `UPDATE ride_statuses SET app_sent_at = CURRENT_TIMESTAMP(6) WHERE ride_id = ? AND status = ?`, response.RideID, response.Status)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				slog.Error("failed to update ride_status.app_sent_at", "error", err, "ride_id", response.RideID)
-				return
-			}
+			//_, err := db.ExecContext(ctx, `UPDATE ride_statuses SET app_sent_at = CURRENT_TIMESTAMP(6) WHERE ride_id = ? AND status = ?`, response.RideID, response.Status)
+			//if err != nil {
+			//	writeError(w, http.StatusInternalServerError, err)
+			//	slog.Error("failed to update ride_status.app_sent_at", "error", err, "ride_id", response.RideID)
+			//	return
+			//}
 		case <-ctx.Done():
 			return
 		}
