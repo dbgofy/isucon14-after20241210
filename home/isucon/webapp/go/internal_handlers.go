@@ -32,6 +32,19 @@ func matching() {
 		}
 	}
 
+	chairModelByChairName := make(map[string]ChairModel)
+	{
+		chairModels := []ChairModel{}
+		if err := db.SelectContext(ctx, &chairModels, "SELECT * FROM chair_models"); err != nil {
+			slog.Error("failed to get chair models", "error", err)
+			return
+		}
+		for _, chairModel := range chairModels {
+			chairModelByChairName[chairModel.Name] = chairModel
+		}
+	}
+
+	rides := []Ride{}
 	slog.Info("matching start")
 	defer slog.Info("matching end")
 	for {
@@ -59,10 +72,11 @@ func matching() {
 			if !chair.IsActive {
 				continue
 			}
-			rides := []Ride{}
-			if err := db.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
-				slog.Error("failed to get rides", "error", err)
-				continue
+			if len(rides) < 10 {
+				if err := db.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
+					slog.Error("failed to get rides", "error", err)
+					continue
+				}
 			}
 			if len(rides) == 0 {
 				matchingChannel <- chairID
@@ -98,7 +112,8 @@ func matching() {
 					slog.Info("no chair locations")
 					continue
 				}
-				for _, r := range rides {
+				lastMatchedRideIndex := -1
+				for i, r := range rides {
 					if len(chairLocations) == 0 {
 						break
 					}
@@ -122,9 +137,13 @@ func matching() {
 					}
 
 					chairLocations = slices.Delete(chairLocations, selectChairLocationIndex, selectChairLocationIndex+1)
+					lastMatchedRideIndex = i
 				}
 				for _, cl := range chairLocations {
 					matchingChannel <- cl.ChairID
+				}
+				if lastMatchedRideIndex != -1 {
+					rides = slices.Delete(rides, 0, lastMatchedRideIndex+1)
 				}
 			} else {
 				chairLocation := GetChairLocation(chairID)
@@ -142,6 +161,9 @@ func matching() {
 				if err != nil {
 					slog.Error("failed to matching", "error", err)
 					continue
+				}
+				if len(rides) > 1 {
+					rides = rides[1:]
 				}
 			}
 		}
