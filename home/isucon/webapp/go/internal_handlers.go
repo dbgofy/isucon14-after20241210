@@ -114,7 +114,7 @@ func matching() {
 			usedRideIDs := make(map[string]struct{})
 			usedChairIDs := make(map[string]struct{})
 			for _, es := range expectedScores {
-				if es.expectedScore < highExpectedScore*0.7 { // 70%以下のものは無視
+				if es.expectedScore < highExpectedScore*0.1 { // 10%以下のものは無視
 					break
 				}
 				if _, ok := usedRideIDs[es.ride.ID]; ok {
