@@ -140,6 +140,9 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: now,
 	}
 	InsertChairLocation(&cl)
+	writeJSON(w, http.StatusOK, &chairPostCoordinateResponse{
+		RecordedAt: now.UnixMilli(),
+	})
 	go func() {
 		time.Sleep(90 * time.Second)
 		db.ExecContext(
@@ -233,10 +236,6 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-
-	writeJSON(w, http.StatusOK, &chairPostCoordinateResponse{
-		RecordedAt: location.CreatedAt.UnixMilli(),
-	})
 }
 
 type simpleUser struct {
