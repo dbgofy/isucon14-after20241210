@@ -73,6 +73,7 @@ func matching() {
 				continue
 			}
 			if len(rides) < 10 {
+				rides = []Ride{}
 				if err := db.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
 					slog.Error("failed to get rides", "error", err)
 					continue
