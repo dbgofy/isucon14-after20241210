@@ -100,7 +100,7 @@ func matching() {
 						ride:          r,
 						chairLocation: chairLocation,
 						expectedScore: calcExpectedScore(r, chairLocation, chairModelByChairName[chair.Model].Speed) +
-							float64((time.Now().Sub(r.CreatedAt)).Nanoseconds())*0.1, // うまく待ってる時間を考慮したい
+							float64((time.Now().Sub(r.CreatedAt)).Nanoseconds())*0.01, // うまく待ってる時間を考慮したい
 					})
 				}
 			}
