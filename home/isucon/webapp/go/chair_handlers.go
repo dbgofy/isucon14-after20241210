@@ -415,6 +415,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
 			}
+			// どうやら記録してなくてもいいらしい
 			//_, err := db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = CURRENT_TIMESTAMP(6) WHERE ride_id = ? AND status = ?`, response.RideID, response.Status)
 			//if err != nil {
 			//	writeError(w, http.StatusInternalServerError, err)
