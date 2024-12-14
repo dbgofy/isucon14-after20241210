@@ -293,12 +293,19 @@ type executableGet interface {
 	GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
 }
 
-func getLatestRideStatus(ctx context.Context, tx executableGet, rideID string) (string, error) {
-	status := ""
-	if err := tx.GetContext(ctx, &status, `SELECT status FROM ride_statuses WHERE ride_id = ? ORDER BY created_at DESC LIMIT 1`, rideID); err != nil {
-		return "", err
+var rideStatusMap sync.Map
+
+func getLatestRideStatus(rideID string) *string {
+	v, ok := rideStatusMap.Load(rideID)
+	if !ok {
+		return nil
 	}
-	return status, nil
+	status := v.(string)
+	return &status
+}
+
+func UpdateRideStatus(rideID, status string) {
+	rideStatusMap.Store(rideID, status)
 }
 
 func appPostRides(w http.ResponseWriter, r *http.Request) {
@@ -374,6 +381,7 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	UpdateRideStatus(rideID, "MATCHING")
 
 	var coupon Coupon
 	if countingRide == 1 {
@@ -546,11 +554,12 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	status, err := getLatestRideStatus(ctx, tx, ride.ID)
-	if err != nil {
+	statusV := getLatestRideStatus(ride.ID)
+	if statusV == nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	status := *statusV
 
 	if status != "ARRIVED" {
 		writeError(w, http.StatusBadRequest, errors.New("not arrived yet"))
@@ -585,6 +594,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	status = "COMPLETED"
+	UpdateRideStatus(rideID, status)
 
 	paymentToken := &PaymentToken{}
 	if err := tx.GetContext(ctx, paymentToken, `SELECT * FROM payment_tokens WHERE user_id = ?`, ride.UserID); err != nil {
@@ -754,23 +764,14 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	}
 	status := ""
 	if ride != nil {
-		yetSentRideStatus := RideStatus{}
-		if err := db.GetContext(ctx, &yetSentRideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ? AND app_sent_at IS NULL ORDER BY created_at ASC LIMIT 1`, ride.ID); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				status, err = getLatestRideStatus(ctx, db, ride.ID)
-				if err != nil {
-					writeError(w, http.StatusInternalServerError, err)
-					slog.Info("failed to get latest ride status", "ride_id", ride.ID, "error", err)
-					return
-				}
-			} else {
-				writeError(w, http.StatusInternalServerError, err)
-				slog.Error("failed to get rides", "error", err, "ride_id", ride.ID)
-				return
-			}
-		} else {
-			status = yetSentRideStatus.Status
+		statusV := getLatestRideStatus(ride.ID)
+		if statusV == nil {
+			err := errors.New("failed to get latest ride status")
+			writeError(w, http.StatusInternalServerError, err)
+			slog.Info("failed to get latest ride status", "ride_id", ride.ID, "error", err)
+			return
 		}
+		status = *statusV
 
 		err := sendAppGetNotificationChannel(ctx, nil, status, ride)
 		if err != nil {

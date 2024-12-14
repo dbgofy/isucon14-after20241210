@@ -180,11 +180,12 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		status, err := getLatestRideStatus(ctx, tx, ride.ID)
-		if err != nil {
+		statusV := getLatestRideStatus(ride.ID)
+		if statusV == nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
+		status := *statusV
 		if status != "COMPLETED" && status != "CANCELED" {
 			if req.Latitude == ride.PickupLatitude && req.Longitude == ride.PickupLongitude && status == "ENROUTE" {
 				if _, err := tx.ExecContext(ctx, "INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)", ulid.Make().String(), ride.ID, "PICKUP"); err != nil {
@@ -203,6 +204,7 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 					slog.Error("failed to send notification", "error", err)
 					return
 				}
+				UpdateRideStatus(ride.ID, "PICKUP")
 			}
 
 			if req.Latitude == ride.DestinationLatitude && req.Longitude == ride.DestinationLongitude && status == "CARRYING" {
@@ -222,6 +224,7 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 					slog.Error("failed to send notification", "error", err)
 					return
 				}
+				UpdateRideStatus(ride.ID, "ARRIVED")
 			}
 		}
 	}
@@ -325,23 +328,14 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 	}
 	status := ""
 	if ride != nil {
-		yetSentRideStatus := RideStatus{}
-		if err := db.GetContext(ctx, &yetSentRideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ? AND chair_sent_at IS NULL ORDER BY created_at ASC LIMIT 1`, ride.ID); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				status, err = getLatestRideStatus(ctx, db, ride.ID)
-				if err != nil {
-					writeError(w, http.StatusInternalServerError, err)
-					slog.Info("failed to get latest ride status", "ride_id", ride.ID, "error", err)
-					return
-				}
-			} else {
-				writeError(w, http.StatusInternalServerError, err)
-				slog.Error("failed to get rides", "error", err, "ride_id", ride.ID)
-				return
-			}
-		} else {
-			status = yetSentRideStatus.Status
+		statusV := getLatestRideStatus(ride.ID)
+		if statusV == nil {
+			err := errors.New("failed to get latest ride status")
+			writeError(w, http.StatusInternalServerError, err)
+			slog.Info("failed to get latest ride status", "ride_id", ride.ID, "error", err)
+			return
 		}
+		status = *statusV
 
 		err := sendChairGetNotificationChannel(ctx, status, ride, nil)
 		if err != nil {
@@ -481,13 +475,15 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 			slog.Error("failed to send notification", "error", err)
 			return
 		}
+		UpdateRideStatus(ride.ID, "ENROUTE")
 	// After Picking up user
 	case "CARRYING":
-		status, err := getLatestRideStatus(ctx, tx, ride.ID)
-		if err != nil {
+		statusV := getLatestRideStatus(ride.ID)
+		if statusV == nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
+		status := *statusV
 		if status != "PICKUP" {
 			writeError(w, http.StatusBadRequest, errors.New("chair has not arrived yet"))
 			return
@@ -508,6 +504,7 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 			slog.Error("failed to send notification", "error", err)
 			return
 		}
+		UpdateRideStatus(ride.ID, "CARRYING")
 	default:
 		writeError(w, http.StatusBadRequest, errors.New("invalid status"))
 	}
