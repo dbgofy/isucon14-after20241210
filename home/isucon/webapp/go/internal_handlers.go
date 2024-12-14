@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -113,6 +114,7 @@ func matching() {
 			//highExpectedScore := expectedScores[0].expectedScore
 			usedRideIDs := make(map[string]struct{})
 			usedChairIDs := make(map[string]struct{})
+			matchingRides := make([]Ride, 0, len(expectedScores))
 			for _, es := range expectedScores {
 				//if es.expectedScore < highExpectedScore*0.1 { // 10%以下のものは無視
 				//	break
@@ -123,13 +125,17 @@ func matching() {
 				if _, ok := usedChairIDs[es.chairLocation.ChairID]; ok {
 					continue
 				}
-				err := matchingComp(ctx, es.ride, es.chairLocation.ChairID)
-				if err != nil {
-					slog.Error("failed to matching", "error", err)
-					continue
-				}
+				es.ride.ChairID = sql.NullString{String: es.chairLocation.ChairID, Valid: true}
+				matchingRides = append(matchingRides, es.ride)
+
 				usedRideIDs[es.ride.ID] = struct{}{}
 				usedChairIDs[es.chairLocation.ChairID] = struct{}{}
+			}
+
+			err := matchingComp(ctx, matchingRides)
+			if err != nil {
+				slog.Error("failed to matching", "error", err)
+				continue
 			}
 
 			waitingChairIDs = slices.DeleteFunc(waitingChairIDs, func(chairID string) bool {
@@ -160,21 +166,35 @@ func calcExpectedScore(ride Ride, nowChairLocation *ChairLocation, speed int) fl
 	return ret / t
 }
 
-func matchingComp(ctx context.Context, ride Ride, chairID string) error {
-	ride.ChairID = sql.NullString{String: chairID, Valid: true}
-	if _, err := db.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ? AND chair_id IS NULL", chairID, ride.ID); err != nil {
+func matchingComp(ctx context.Context, rides []Ride) error {
+	rideIDs := make([]string, 0, len(rides))
+	chairIDs := make([]string, 0, len(rides))
+	for _, ride := range rides {
+		rideIDs = append(rideIDs, ride.ID)
+		chairIDs = append(chairIDs, ride.ChairID.String)
+	}
+	a := append(append(rideIDs, chairIDs...), rideIDs...)
+	b := make([]any, 0, len(a))
+	for _, v := range a {
+		b = append(b, v)
+	}
+	_, err := db.ExecContext(ctx, fmt.Sprintf("UPDATE rides SET chair_id = ELT(FIELD(id%s)%s) WHERE id IN (%s)", strings.Repeat(",?", len(rideIDs)), strings.Repeat(",?", len(chairIDs)), "?"+strings.Repeat(",?", len(rideIDs)-1)), b...)
+	if err != nil {
 		slog.Error("failed to update ride", "error", err)
 		return fmt.Errorf("failed to update ride: %w", err)
 	}
-	err := sendAppGetNotificationChannel(ctx, nil, "MATCHING", &ride)
-	if err != nil {
-		slog.Error("failed to send notification", "error", err)
-		return fmt.Errorf("failed to send notification: %w", err)
-	}
-	err = sendChairGetNotificationChannel(ctx, "MATCHING", &ride, nil)
-	if err != nil {
-		slog.Error("failed to send notification", "error", err)
-		return fmt.Errorf("failed to send notification: %w", err)
+
+	for _, ride := range rides {
+		err := sendAppGetNotificationChannel(ctx, nil, "MATCHING", &ride)
+		if err != nil {
+			slog.Error("failed to send notification", "error", err)
+			return fmt.Errorf("failed to send notification: %w", err)
+		}
+		err = sendChairGetNotificationChannel(ctx, "MATCHING", &ride, nil)
+		if err != nil {
+			slog.Error("failed to send notification", "error", err)
+			return fmt.Errorf("failed to send notification: %w", err)
+		}
 	}
 	return nil
 }
