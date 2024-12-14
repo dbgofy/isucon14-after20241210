@@ -110,13 +110,13 @@ func matching() {
 			sort.Slice(expectedScores, func(i, j int) bool {
 				return expectedScores[i].expectedScore > expectedScores[j].expectedScore
 			})
-			highExpectedScore := expectedScores[0].expectedScore
+			//highExpectedScore := expectedScores[0].expectedScore
 			usedRideIDs := make(map[string]struct{})
 			usedChairIDs := make(map[string]struct{})
 			for _, es := range expectedScores {
-				if es.expectedScore < highExpectedScore*0.1 { // 10%以下のものは無視
-					break
-				}
+				//if es.expectedScore < highExpectedScore*0.1 { // 10%以下のものは無視
+				//	break
+				//}
 				if _, ok := usedRideIDs[es.ride.ID]; ok {
 					continue
 				}
