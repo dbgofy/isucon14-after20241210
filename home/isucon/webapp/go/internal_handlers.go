@@ -88,7 +88,13 @@ func matching() {
 			expectedScores := make([]expectedScoreType, 0, len(waitingChairIDs)*len(waitingRides))
 			for _, chairID := range waitingChairIDs {
 				chairLocation := GetChairLocation(chairID)
+				if chairLocation == nil {
+					continue
+				}
 				chair := GetChair(chairID)
+				if chair == nil {
+					continue
+				}
 				for _, r := range waitingRides {
 					expectedScores = append(expectedScores, expectedScoreType{
 						ride:          r,
