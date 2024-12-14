@@ -126,15 +126,6 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 		RecordedAt: now.UnixMilli(),
 	})
 
-	tx, err := db.Beginx()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer tx.Rollback()
-
-	prevLocation := GetChairLocation(chair.ID)
-
 	chairLocationID := ulid.Make().String()
 	cl := ChairLocation{
 		ID:        chairLocationID,
@@ -164,6 +155,14 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: now,
 	}
 
+	tx, err := db.Beginx()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	defer tx.Rollback()
+
+	prevLocation := GetChairLocation(chair.ID)
 	if prevLocation != nil {
 		addDistance := abs(prevLocation.Longitude-location.Longitude) + abs(prevLocation.Latitude-location.Latitude)
 		_, err = tx.ExecContext(
