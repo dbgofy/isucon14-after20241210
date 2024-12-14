@@ -173,9 +173,14 @@ func matchingComp(ctx context.Context, rides []Ride) error {
 		rideIDs = append(rideIDs, ride.ID)
 		chairIDs = append(chairIDs, ride.ChairID.String)
 	}
-	a := append(append(rideIDs, chairIDs...), rideIDs...)
-	b := make([]any, 0, len(a))
-	for _, v := range a {
+	b := make([]any, 0, len(rideIDs)*2+len(chairIDs))
+	for _, v := range rideIDs {
+		b = append(b, v)
+	}
+	for _, v := range chairIDs {
+		b = append(b, v)
+	}
+	for _, v := range rideIDs {
 		b = append(b, v)
 	}
 	_, err := db.ExecContext(ctx, fmt.Sprintf("UPDATE rides SET chair_id = ELT(FIELD(id%s)%s) WHERE id IN (%s)", strings.Repeat(",?", len(rideIDs)), strings.Repeat(",?", len(chairIDs)), "?"+strings.Repeat(",?", len(rideIDs)-1)), b...)
