@@ -544,11 +544,11 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	now := time.Now()
+	now := time.Now().Round(time.Second)
 	result, err := tx.ExecContext(
 		ctx,
 		`UPDATE rides SET evaluation = ?, updated_at = ? WHERE id = ?`,
-		req.Evaluation, now.Round(time.Second), rideID)
+		req.Evaluation, now, rideID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
