@@ -121,6 +121,11 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 
 	chair := ctx.Value("chair").(*Chair)
 
+	now := time.Now()
+	writeJSON(w, http.StatusOK, &chairPostCoordinateResponse{
+		RecordedAt: now.UnixMilli(),
+	})
+
 	tx, err := db.Beginx()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
@@ -131,7 +136,6 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	prevLocation := GetChairLocation(chair.ID)
 
 	chairLocationID := ulid.Make().String()
-	now := time.Now()
 	cl := ChairLocation{
 		ID:        chairLocationID,
 		ChairID:   chair.ID,
@@ -140,9 +144,6 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: now,
 	}
 	InsertChairLocation(&cl)
-	writeJSON(w, http.StatusOK, &chairPostCoordinateResponse{
-		RecordedAt: now.UnixMilli(),
-	})
 	go func() {
 		time.Sleep(90 * time.Second)
 		db.ExecContext(
