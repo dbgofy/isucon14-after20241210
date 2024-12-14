@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"sort"
 	"time"
 )
 
@@ -113,39 +114,51 @@ func matching() {
 					slog.Info("no chair locations")
 					continue
 				}
-				lastMatchedRideIndex := -1
-				for i, r := range rides {
-					if len(chairLocations) == 0 {
-						break
+				type expectedScoreType struct {
+					ride          Ride
+					chairLocation *ChairLocation
+					expectedScore float64
+				}
+				expectedScores := make([]expectedScoreType, 0, len(rides)*len(chairLocations))
+				for _, r := range rides {
+					for _, cl := range chairLocations {
+						expectedScores = append(expectedScores, expectedScoreType{
+							ride:          r,
+							chairLocation: cl,
+							expectedScore: calcExpectedScore(r, cl, chairModelByChairName[chair.Model].Speed),
+						})
 					}
-					// 1s以下のrideは無視
-					if r.CreatedAt.Add(1 * time.Second).After(time.Now()) {
-						break
+				}
+				sort.Slice(expectedScores, func(i, j int) bool {
+					return expectedScores[i].expectedScore > expectedScores[j].expectedScore
+				})
+				usedRideIDs := make(map[string]struct{})
+				usedChairIDs := make(map[string]struct{})
+				for _, es := range expectedScores {
+					if _, ok := usedRideIDs[es.ride.ID]; ok {
+						continue
 					}
-					chairLocation := chairLocations[0]
-					selectChairLocationIndex := 0
-					for index, cl := range chairLocations {
-						if abs(r.PickupLatitude-chairLocation.Latitude)+abs(r.PickupLongitude-chairLocation.Longitude) > abs(r.PickupLatitude-cl.Latitude)+abs(r.PickupLongitude-cl.Longitude) {
-							chairLocation = cl
-							selectChairLocationIndex = index
-						}
+					if _, ok := usedChairIDs[es.chairLocation.ChairID]; ok {
+						continue
 					}
-
-					err := matchingComp(ctx, r, chairLocation.ChairID)
+					err := matchingComp(ctx, es.ride, es.chairLocation.ChairID)
 					if err != nil {
 						slog.Error("failed to matching", "error", err)
-						break
+						continue
 					}
+					usedRideIDs[es.ride.ID] = struct{}{}
+					usedChairIDs[es.chairLocation.ChairID] = struct{}{}
+				}
 
-					chairLocations = slices.Delete(chairLocations, selectChairLocationIndex, selectChairLocationIndex+1)
-					lastMatchedRideIndex = i
-				}
 				for _, cl := range chairLocations {
-					matchingChannel <- cl.ChairID
+					if _, ok := usedChairIDs[cl.ChairID]; !ok {
+						matchingChannel <- cl.ChairID
+					}
 				}
-				if lastMatchedRideIndex != -1 {
-					rides = slices.Delete(rides, 0, lastMatchedRideIndex+1)
-				}
+				rides = slices.DeleteFunc(rides, func(ride Ride) bool {
+					_, ok := usedRideIDs[ride.ID]
+					return ok
+				})
 			} else {
 				chairLocation := GetChairLocation(chairID)
 				if chairLocation == nil {
@@ -154,10 +167,12 @@ func matching() {
 					continue
 				}
 				selectedIndex := 0
+				selectedExpectedScore := -1.0
 				for i, r := range rides {
-					if abs(ride.PickupLatitude-chairLocation.Latitude)+abs(ride.PickupLongitude-chairLocation.Longitude) > abs(r.PickupLatitude-chairLocation.Latitude)+abs(r.PickupLongitude-chairLocation.Longitude) {
-						ride = r
+					expectedScore := calcExpectedScore(r, chairLocation, chairModelByChairName[chair.Model].Speed)
+					if expectedScore > selectedExpectedScore {
 						selectedIndex = i
+						selectedExpectedScore = expectedScore
 					}
 				}
 				err := matchingComp(ctx, ride, chairID)
@@ -169,6 +184,22 @@ func matching() {
 			}
 		}
 	}
+}
+
+func calcExpectedScore(ride Ride, nowChairLocation *ChairLocation, speed int) float64 {
+	var ret float64
+	// 椅子がライドとマッチした位置から乗車位置までの移動距離の合計 * 0.1
+	distanceOfChairToPickup := float64(calculateDistance(nowChairLocation.Latitude, nowChairLocation.Longitude, ride.PickupLatitude, ride.PickupLongitude))
+	ret += (distanceOfChairToPickup) * 0.1
+	// 椅子の乗車位置から目的地までの移動距離の合計
+	distanceOfPickupToDestination := float64(calculateDistance(ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude))
+	ret += distanceOfPickupToDestination
+
+	// かかる時間
+	t := (distanceOfChairToPickup + distanceOfPickupToDestination) / float64(speed)
+
+	// 単位時間あたりの得点の期待値
+	return ret / t
 }
 
 func matchingComp(ctx context.Context, ride Ride, chairID string) error {
