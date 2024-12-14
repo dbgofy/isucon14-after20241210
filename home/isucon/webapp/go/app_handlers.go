@@ -245,11 +245,7 @@ func appGetRides(w http.ResponseWriter, r *http.Request) {
 		item.Chair.Name = chair.Name
 		item.Chair.Model = chair.Model
 
-		owner := &Owner{}
-		if err := tx.GetContext(ctx, owner, `SELECT * FROM owners WHERE id = ?`, chair.OwnerID); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
+		owner := GetOwner(chair.OwnerID)
 		item.Chair.Owner = owner.Name
 
 		items = append(items, item)

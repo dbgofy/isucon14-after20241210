@@ -41,13 +41,9 @@ func ownerAuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		accessToken := c.Value
-		owner := &Owner{}
-		if err := db.GetContext(ctx, owner, "SELECT * FROM owners WHERE access_token = ?", accessToken); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				writeError(w, http.StatusUnauthorized, errors.New("invalid access token"))
-				return
-			}
-			writeError(w, http.StatusInternalServerError, err)
+		owner := GetOwner(accessToken)
+		if owner == nil {
+			writeError(w, http.StatusUnauthorized, errors.New("invalid access token"))
 			return
 		}
 

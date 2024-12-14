@@ -153,6 +153,17 @@ func setup() http.Handler {
 		}
 	}
 
+	{
+		OwnerMap = sync.Map{}
+		owners := []Owner{}
+		if err := db.Select(&owners, "SELECT * FROM owners"); err != nil {
+			panic(err)
+		}
+		for _, owner := range owners {
+			InsertOwner(&owner)
+		}
+	}
+
 	go matching()
 	{
 		if err := db.Get(&paymentGatewayURL, "SELECT value FROM settings WHERE name = 'payment_gateway_url'"); err != nil {
@@ -285,6 +296,15 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	appGetNotificationChannel = sync.Map{}
 
 	matchingInit <- struct{}{}
+
+	OwnerMap = sync.Map{}
+	owners := []Owner{}
+	if err = db.Select(&owners, "SELECT * FROM owners"); err != nil {
+		panic(err)
+	}
+	for _, owner := range owners {
+		InsertOwner(&owner)
+	}
 
 	writeJSON(w, http.StatusOK, postInitializeResponse{Language: "go"})
 }

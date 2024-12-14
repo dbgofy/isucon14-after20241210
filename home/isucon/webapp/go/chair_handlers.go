@@ -37,13 +37,9 @@ func chairPostChairs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	owner := &Owner{}
-	if err := db.GetContext(ctx, owner, "SELECT * FROM owners WHERE chair_register_token = ?", req.ChairRegisterToken); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeError(w, http.StatusUnauthorized, errors.New("invalid chair_register_token"))
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err)
+	owner := GetOwner(req.ChairRegisterToken)
+	if owner == nil {
+		writeError(w, http.StatusUnauthorized, errors.New("invalid chair_register_token"))
 		return
 	}
 

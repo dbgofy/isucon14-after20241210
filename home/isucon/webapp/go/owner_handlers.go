@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -24,6 +25,21 @@ type ownerPostOwnersResponse struct {
 	ChairRegisterToken string `json:"chair_register_token"`
 }
 
+var OwnerMap = sync.Map{}
+
+func InsertOwner(owner *Owner) {
+	OwnerMap.Store(owner.ID, owner)
+	OwnerMap.Store(owner.ChairRegisterToken, owner)
+	OwnerMap.Store(owner.AccessToken, owner)
+}
+
+func GetOwner(key string) *Owner {
+	if v, ok := OwnerMap.Load(key); ok {
+		return v.(*Owner)
+	}
+	return nil
+}
+
 func ownerPostOwners(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req := &ownerPostOwnersRequest{}
@@ -40,15 +56,24 @@ func ownerPostOwners(w http.ResponseWriter, r *http.Request) {
 	accessToken := secureRandomStr(32)
 	chairRegisterToken := secureRandomStr(32)
 
+	now := time.Now()
 	_, err := db.ExecContext(
 		ctx,
-		"INSERT INTO owners (id, name, access_token, chair_register_token) VALUES (?, ?, ?, ?)",
-		ownerID, req.Name, accessToken, chairRegisterToken,
+		"INSERT INTO owners (id, name, access_token, chair_register_token, updated_at, created_at) VALUES (?, ?, ?, ?,?,?)",
+		ownerID, req.Name, accessToken, chairRegisterToken, now, now,
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	InsertOwner(&Owner{
+		ID:                 ownerID,
+		Name:               req.Name,
+		AccessToken:        accessToken,
+		ChairRegisterToken: chairRegisterToken,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
 
 	http.SetCookie(w, &http.Cookie{
 		Path:  "/",
