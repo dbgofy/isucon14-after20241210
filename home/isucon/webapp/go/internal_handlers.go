@@ -153,9 +153,11 @@ func matching() {
 					spew.Dump("fail GetChairLocation, chairID: ", chairID)
 					continue
 				}
-				for _, r := range rides {
+				selectedIndex := 0
+				for i, r := range rides {
 					if abs(ride.PickupLatitude-chairLocation.Latitude)+abs(ride.PickupLongitude-chairLocation.Longitude) > abs(r.PickupLatitude-chairLocation.Latitude)+abs(r.PickupLongitude-chairLocation.Longitude) {
 						ride = r
+						selectedIndex = i
 					}
 				}
 				err := matchingComp(ctx, ride, chairID)
@@ -163,9 +165,7 @@ func matching() {
 					slog.Error("failed to matching", "error", err)
 					continue
 				}
-				if len(rides) > 1 {
-					rides = rides[1:]
-				}
+				rides = slices.Delete(rides, selectedIndex, selectedIndex+1)
 			}
 		}
 	}
