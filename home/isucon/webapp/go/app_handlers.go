@@ -209,46 +209,63 @@ func appGetRides(w http.ResponseWriter, r *http.Request) {
 	}
 
 	items := []getAppRidesResponseItem{}
-	for _, ride := range rides {
-		status, err := getLatestRideStatus(ctx, tx, ride.ID)
+	if len(rides) > 0 {
+		rideIDs := make([]string, 0, len(rides))
+		for _, ride := range rides {
+			rideIDs = append(rideIDs, ride.ID)
+		}
+
+		coupons := []Coupon{}
+		query, params, err := sqlx.In("SELECT * FROM coupons WHERE used_by IN (?)", rideIDs)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
-		if status != "COMPLETED" {
-			continue
-		}
-
-		fare, err := calculateDiscountedFare(ctx, tx, user.ID, &ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
-		if err != nil {
+		if err := tx.SelectContext(ctx, &coupons, query, params...); err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
-
-		item := getAppRidesResponseItem{
-			ID:                    ride.ID,
-			PickupCoordinate:      Coordinate{Latitude: ride.PickupLatitude, Longitude: ride.PickupLongitude},
-			DestinationCoordinate: Coordinate{Latitude: ride.DestinationLatitude, Longitude: ride.DestinationLongitude},
-			Fare:                  fare,
-			Evaluation:            *ride.Evaluation,
-			RequestedAt:           ride.CreatedAt.UnixMilli(),
-			CompletedAt:           ride.UpdatedAt.UnixMilli(),
+		couponByRideID := map[string]Coupon{}
+		for _, coupon := range coupons {
+			couponByRideID[*coupon.UsedBy] = coupon
 		}
 
-		item.Chair = getAppRidesResponseItemChair{}
+		for _, ride := range rides {
+			if ride.Evaluation == nil {
+				continue
+			}
 
-		chair := &Chair{}
-		if ride.ChairID.Valid {
-			chair = GetChair(ride.ChairID.String)
+			discount := 0
+			if coupon, ok := couponByRideID[ride.ID]; ok {
+				discount = coupon.Discount
+			}
+			fare := calcFare(ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude, discount)
+
+			item := getAppRidesResponseItem{
+				ID:                    ride.ID,
+				PickupCoordinate:      Coordinate{Latitude: ride.PickupLatitude, Longitude: ride.PickupLongitude},
+				DestinationCoordinate: Coordinate{Latitude: ride.DestinationLatitude, Longitude: ride.DestinationLongitude},
+				Fare:                  fare,
+				Evaluation:            *ride.Evaluation,
+				RequestedAt:           ride.CreatedAt.UnixMilli(),
+				CompletedAt:           ride.UpdatedAt.UnixMilli(),
+			}
+
+			item.Chair = getAppRidesResponseItemChair{}
+
+			chair := &Chair{}
+			if ride.ChairID.Valid {
+				chair = GetChair(ride.ChairID.String)
+			}
+			item.Chair.ID = chair.ID
+			item.Chair.Name = chair.Name
+			item.Chair.Model = chair.Model
+
+			owner := GetOwner(chair.OwnerID)
+			item.Chair.Owner = owner.Name
+
+			items = append(items, item)
 		}
-		item.Chair.ID = chair.ID
-		item.Chair.Name = chair.Name
-		item.Chair.Model = chair.Model
-
-		owner := GetOwner(chair.OwnerID)
-		item.Chair.Owner = owner.Name
-
-		items = append(items, item)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -1034,10 +1051,14 @@ func calculateDiscountedFare(ctx context.Context, tx *sqlx.Tx, userID string, ri
 		}
 	}
 
+	return calcFare(pickupLatitude, pickupLongitude, destLatitude, destLongitude, discount), nil
+}
+
+func calcFare(pickupLatitude int, pickupLongitude int, destLatitude int, destLongitude int, discount int) int {
 	meteredFare := farePerDistance * calculateDistance(pickupLatitude, pickupLongitude, destLatitude, destLongitude)
 	discountedMeteredFare := max(meteredFare-discount, 0)
 
-	return initialFare + discountedMeteredFare, nil
+	return initialFare + discountedMeteredFare
 }
 
 func calculateDiscountedFare2(ctx context.Context, db *sqlx.DB, userID string, ride *Ride, pickupLatitude, pickupLongitude, destLatitude, destLongitude int) (int, error) {
