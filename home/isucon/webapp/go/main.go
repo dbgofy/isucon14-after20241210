@@ -164,6 +164,17 @@ func setup() http.Handler {
 		}
 	}
 
+	{
+		rideStatusMap = sync.Map{}
+		rideStatuses := []RideStatus{}
+		if err = db.Select(&rideStatuses, "SELECT * FROM ride_statuses ORDER BY created_at"); err != nil {
+			panic(err)
+		}
+		for _, rs := range rideStatuses {
+			rideStatusMap.Store(rs.ID, &rs)
+		}
+	}
+
 	go matching()
 	{
 		if err := db.Get(&paymentGatewayURL, "SELECT value FROM settings WHERE name = 'payment_gateway_url'"); err != nil {
@@ -304,6 +315,15 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, owner := range owners {
 		InsertOwner(&owner)
+	}
+
+	rideStatusMap = sync.Map{}
+	rideStatuses := []RideStatus{}
+	if err = db.Select(&rideStatuses, "SELECT * FROM ride_statuses ORDER BY created_at"); err != nil {
+		panic(err)
+	}
+	for _, rs := range rideStatuses {
+		rideStatusMap.Store(rs.ID, &rs)
 	}
 
 	writeJSON(w, http.StatusOK, postInitializeResponse{Language: "go"})
