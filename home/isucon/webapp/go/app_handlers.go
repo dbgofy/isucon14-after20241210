@@ -591,6 +591,11 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 	}
 	ride.Evaluation = &req.Evaluation
 	ride.UpdatedAt = now
+	stat := getChairStats(ride.ChairID.String)
+	InsertChairStats(ride.ID, ChairStatType{
+		Count: stat.Count + 1,
+		Sum:   stat.Sum + float64(req.Evaluation),
+	})
 
 	_, err = tx.ExecContext(
 		ctx,
@@ -727,15 +732,7 @@ func sendAppGetNotificationChannel(ctx context.Context, tx *sqlx.Tx, status stri
 	if ride.ChairID.Valid {
 		chair := GetChair(ride.ChairID.String)
 
-		var stats appGetNotificationResponseChairStats
-		if tx != nil {
-			stats, err = getChairStats2(ctx, tx, chair.ID)
-		} else {
-			stats, err = getChairStats(ctx, db, chair.ID)
-		}
-		if err != nil {
-			return fmt.Errorf("failed to get chair stats: %w", err)
-		}
+		stats := getChairStats(chair.ID).ToAppGetNotificationResponseChairStats()
 
 		response.Chair = &appGetNotificationResponseChair{
 			ID:    chair.ID,
@@ -860,60 +857,40 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getChairStats(ctx context.Context, db *sqlx.DB, chairID string) (appGetNotificationResponseChairStats, error) {
-	stats := appGetNotificationResponseChairStats{}
+var ChairStatsMap = sync.Map{}
 
-	var score struct {
-		Sum   float64 `db:"s"`
-		Count int     `db:"c"`
-	}
-	err := db.GetContext(
-		ctx,
-		&score,
-		`SELECT SUM(evaluation) as s, COUNT(1) as c FROM rides WHERE chair_id = ? AND evaluation IS NOT NULL GROUP BY chair_id`,
-		chairID,
-	)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return stats, nil
-		}
-		return stats, fmt.Errorf("failed to get chair stats: %w", err)
-	}
-
-	stats.TotalRidesCount = score.Count
-	if score.Count > 0 {
-		stats.TotalEvaluationAvg = score.Sum / float64(score.Count)
-	}
-
-	return stats, nil
+type ChairStatType struct {
+	Count int
+	Sum   float64
 }
 
-func getChairStats2(ctx context.Context, tx *sqlx.Tx, chairID string) (appGetNotificationResponseChairStats, error) {
-	stats := appGetNotificationResponseChairStats{}
-
-	var score struct {
-		Sum   float64 `db:"s"`
-		Count int     `db:"c"`
-	}
-	err := tx.GetContext(
-		ctx,
-		&score,
-		`SELECT SUM(evaluation) as s, COUNT(1) as c FROM rides WHERE chair_id = ? AND evaluation IS NOT NULL GROUP BY chair_id`,
-		chairID,
-	)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return stats, nil
+func (s ChairStatType) ToAppGetNotificationResponseChairStats() appGetNotificationResponseChairStats {
+	if s.Count == 0 {
+		return appGetNotificationResponseChairStats{
+			TotalRidesCount:    0,
+			TotalEvaluationAvg: 0,
 		}
-		return stats, fmt.Errorf("failed to get chair stats: %w", err)
 	}
-
-	stats.TotalRidesCount = score.Count
-	if score.Count > 0 {
-		stats.TotalEvaluationAvg = score.Sum / float64(score.Count)
+	return appGetNotificationResponseChairStats{
+		TotalRidesCount:    s.Count,
+		TotalEvaluationAvg: s.Sum / float64(s.Count),
 	}
+}
 
-	return stats, nil
+func InsertChairStats(rideID string, stat ChairStatType) {
+	ChairStatsMap.Store(rideID, stat)
+}
+
+func getChairStats(chairID string) ChairStatType {
+	stats, ok := ChairStatsMap.Load(chairID)
+	if !ok {
+		return ChairStatType{}
+	}
+	s, ok := stats.(ChairStatType)
+	if !ok {
+		return ChairStatType{}
+	}
+	return s
 }
 
 type appGetNearbyChairsResponse struct {

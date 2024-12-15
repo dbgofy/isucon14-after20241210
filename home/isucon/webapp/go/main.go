@@ -201,6 +201,26 @@ func setup() http.Handler {
 		}
 	}
 
+	{
+		ChairStatsMap = sync.Map{}
+		stats := []struct {
+			ChairID string  `db:"chair_id"`
+			S       float64 `db:"s"`
+			C       int     `db:"c"`
+		}{}
+		if err := db.Select(&stats,
+			`SELECT chair_id, SUM(evaluation) as s, COUNT(1) as c FROM rides WHERE chair_id = ? AND evaluation IS NOT NULL GROUP BY chair_id`,
+		); err != nil {
+			panic(err)
+		}
+		for _, stat := range stats {
+			InsertChairStats(stat.ChairID, ChairStatType{
+				Count: stat.C,
+				Sum:   stat.S,
+			})
+		}
+	}
+
 	go matching()
 	{
 		if err := db.Get(&paymentGatewayURL, "SELECT value FROM settings WHERE name = 'payment_gateway_url'"); err != nil {
@@ -359,6 +379,24 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, u := range users {
 		InsertUser(&u)
+	}
+
+	ChairStatsMap = sync.Map{}
+	stats := []struct {
+		ChairID string  `db:"chair_id"`
+		S       float64 `db:"s"`
+		C       int     `db:"c"`
+	}{}
+	if err := db.Select(&stats,
+		`SELECT chair_id, SUM(evaluation) as s, COUNT(1) as c FROM rides WHERE chair_id = ? AND evaluation IS NOT NULL GROUP BY chair_id`,
+	); err != nil {
+		panic(err)
+	}
+	for _, stat := range stats {
+		InsertChairStats(stat.ChairID, ChairStatType{
+			Count: stat.C,
+			Sum:   stat.S,
+		})
 	}
 
 	writeJSON(w, http.StatusOK, postInitializeResponse{Language: "go"})
