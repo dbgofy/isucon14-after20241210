@@ -209,7 +209,7 @@ func setup() http.Handler {
 			C       int     `db:"c"`
 		}{}
 		if err := db.Select(&stats,
-			`SELECT chair_id, SUM(evaluation) as s, COUNT(1) as c FROM rides WHERE chair_id IS NOT NULL AND evaluation IS NOT NULL GROUP BY chair_id`,
+			`SELECT chair_id, SUM(evaluation) as s, COUNT(1) as c FROM rides WHERE chair_id IS NOT NULL GROUP BY chair_id`,
 		); err != nil {
 			panic(err)
 		}
@@ -388,7 +388,7 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		C       int     `db:"c"`
 	}{}
 	if err := db.Select(&stats,
-		`SELECT chair_id, SUM(evaluation) as s, COUNT(1) as c FROM rides WHERE chair_id IS NOT NULL AND evaluation IS NOT NULL GROUP BY chair_id`,
+		`SELECT chair_id, SUM(evaluation) as s, COUNT(1) as c FROM rides WHERE chair_id IS NOT NULL GROUP BY chair_id`,
 	); err != nil {
 		panic(err)
 	}
