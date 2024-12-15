@@ -55,7 +55,7 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	_, err = tx.ExecContext(
 		ctx,
-		"INSERT INTO users (id, username, firstname, lastname, date_of_birth, access_token, invitation_code, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?,?,?)",
+		"INSERT INTO users (id, username, firstname, lastname, date_of_birth, access_token, invitation_code, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		userID, req.Username, req.FirstName, req.LastName, req.DateOfBirth, accessToken, invitationCode, now, now,
 	)
 	if err != nil {

@@ -76,6 +76,7 @@ var UserMap = sync.Map{}
 func InsertUser(user *User) {
 	UserMap.Store(user.ID, user)
 	UserMap.Store(user.AccessToken, user)
+	UserMap.Store(user.InvitationCode, user)
 }
 
 func GetUser(key string) *User {
