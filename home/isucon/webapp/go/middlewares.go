@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 )
@@ -16,14 +15,9 @@ func appAuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		accessToken := c.Value
-		user := &User{}
-		err = db.GetContext(ctx, user, "SELECT * FROM users WHERE access_token = ?", accessToken)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				writeError(w, http.StatusUnauthorized, errors.New("invalid access token"))
-				return
-			}
-			writeError(w, http.StatusInternalServerError, err)
+		user := GetUser(accessToken)
+		if user == nil {
+			writeError(w, http.StatusUnauthorized, errors.New("invalid access token"))
 			return
 		}
 
@@ -41,13 +35,9 @@ func ownerAuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		accessToken := c.Value
-		owner := &Owner{}
-		if err := db.GetContext(ctx, owner, "SELECT * FROM owners WHERE access_token = ?", accessToken); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				writeError(w, http.StatusUnauthorized, errors.New("invalid access token"))
-				return
-			}
-			writeError(w, http.StatusInternalServerError, err)
+		owner := GetOwner(accessToken)
+		if owner == nil {
+			writeError(w, http.StatusUnauthorized, errors.New("invalid access token"))
 			return
 		}
 

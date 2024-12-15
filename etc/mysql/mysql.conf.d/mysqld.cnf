@@ -79,3 +79,7 @@ max_binlog_size   = 100M
 # binlog_do_db		= include_database_name
 # binlog_ignore_db	= include_database_name
 
+innodb_buffer_pool_size=2G
+thread_cache_size=100
+innodb_file_per_table=ON
+tmp_table_size=1G

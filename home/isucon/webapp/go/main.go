@@ -2,6 +2,7 @@ package main
 
 import (
 	crand "crypto/rand"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -9,12 +10,9 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"sort"
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/oklog/ulid/v2"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -28,6 +26,7 @@ var db *sqlx.DB
 
 var ChairMap = sync.Map{}
 var ChairLocationMap = sync.Map{}
+var ChairTotalDistanceMap = sync.Map{}
 
 func UpdateChair(chair *Chair, updatedAt *time.Time) {
 	if updatedAt != nil {
@@ -42,6 +41,10 @@ func UpdateChair(chair *Chair, updatedAt *time.Time) {
 func InsertChairLocation(cl *ChairLocation) {
 	ChairLocationMap.Store(cl.ID, cl)
 	ChairLocationMap.Store(cl.ChairID, cl)
+}
+
+func InsertChairTotalDistance(ctd *ChairTotalDistance) {
+	ChairTotalDistanceMap.Store(ctd.ChairID, ctd)
 }
 
 // GetChair
@@ -62,29 +65,32 @@ func GetChairLocation(key string) *ChairLocation {
 	return nil
 }
 
-// ListChairLocations
-// ChairID をキーにして ChairLocation list を取得する
-func ListChairLocations(key string) (cls []*ChairLocation) {
-	ChairLocationMap.Range(func(k, v any) bool {
-		if key == k.(string) {
-			return true
-		}
+func GetTotalDistance(chairID string) int {
+	if v, ok := ChairTotalDistanceMap.Load(chairID); ok {
+		return v.(*ChairTotalDistance).TotalDistance
+	}
+	return 0
+}
 
-		cl := v.(*ChairLocation)
-		if cl.ChairID == key {
-			cls = append(cls, cl)
-		}
-		return true
-	})
-	sort.Slice(cls, func(i, j int) bool {
-		return cls[i].ID < cls[j].ID
-	})
-	return
+var UserMap = sync.Map{}
+
+func InsertUser(user *User) {
+	UserMap.Store(user.ID, user)
+	UserMap.Store(user.AccessToken, user)
+	UserMap.Store(user.InvitationCode, user)
+}
+
+func GetUser(key string) *User {
+	if v, ok := UserMap.Load(key); ok {
+		return v.(*User)
+	}
+	return nil
 }
 
 func main() {
 	mux := setup()
-	slog.Info("Listening on :8080")
+	//slog.Info("Listening on :8080")
+	slog.SetLogLoggerLevel(1000)
 	http.ListenAndServe(":8080", mux)
 }
 
@@ -152,8 +158,87 @@ func setup() http.Handler {
 		}
 	}
 
+	{
+		ChairTotalDistanceMap = sync.Map{}
+		data := []ChairTotalDistance{}
+		if err = db.Select(&data, "SELECT * FROM chair_locations_total_distance ORDER BY chair_id"); err != nil {
+			panic(err)
+		}
+		for _, ctd := range data {
+			InsertChairTotalDistance(&ctd)
+		}
+	}
+
+	{
+		OwnerMap = sync.Map{}
+		owners := []Owner{}
+		if err := db.Select(&owners, "SELECT * FROM owners"); err != nil {
+			panic(err)
+		}
+		for _, owner := range owners {
+			InsertOwner(&owner)
+		}
+	}
+
+	{
+		rideStatusMap = sync.Map{}
+		rideStatuses := []RideStatus{}
+		if err = db.Select(&rideStatuses, "SELECT * FROM ride_statuses ORDER BY created_at"); err != nil {
+			panic(err)
+		}
+		for _, rs := range rideStatuses {
+			rideStatusMap.Store(rs.ID, &rs)
+		}
+	}
+
+	{
+		UserMap = sync.Map{}
+		users := []User{}
+		if err := db.Select(&users, "SELECT * FROM users"); err != nil {
+			panic(err)
+		}
+		for _, u := range users {
+			InsertUser(&u)
+		}
+	}
+
+	{
+		ChairStatsMap = sync.Map{}
+		stats := []struct {
+			ChairID string            `db:"chair_id"`
+			S       sql.Null[float64] `db:"s"`
+			C       sql.Null[int]     `db:"c"`
+		}{}
+		if err := db.Select(&stats,
+			`SELECT chair_id, SUM(evaluation) as s, COUNT(1) as c FROM rides WHERE chair_id IS NOT NULL GROUP BY chair_id`,
+		); err != nil {
+			panic(err)
+		}
+		for _, stat := range stats {
+			c := 0
+			if stat.C.Valid {
+				c = stat.C.V
+			}
+			s := 0.0
+			if stat.S.Valid {
+				s = stat.S.V
+			}
+			InsertChairStats(stat.ChairID, ChairStatType{
+				Count: c,
+				Sum:   s,
+			})
+		}
+	}
+
+	go matching()
+	{
+		if err := db.Get(&paymentGatewayURL, "SELECT value FROM settings WHERE name = 'payment_gateway_url'"); err != nil {
+			panic(err)
+		}
+	}
+
 	mux := chi.NewRouter()
-	mux.Use(middleware.Logger)
+	//mux.Use(middleware.Logger)
 	mux.Use(middleware.Recoverer)
 
 	mux.HandleFunc("POST /api/initialize", postInitialize)
@@ -228,39 +313,40 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	paymentGatewayURL = req.PaymentServer
 
 	chairLocations := []ChairLocation{}
 	if err := db.SelectContext(ctx, &chairLocations, "SELECT * FROM chair_locations ORDER BY created_at"); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	prevChairLocations := make(map[string]ChairLocation)
-	distanceByChairID := make(map[string]int)
 	for _, cl := range chairLocations {
 		InsertChairLocation(&cl)
-		prevChairLocation, ok := prevChairLocations[cl.ChairID]
-		prevChairLocations[cl.ChairID] = cl
-		if !ok {
-			continue
+	}
+	chairTotalDistanceByChairID := map[string]int{}
+	prevChairLocationByChairID := map[string]*ChairLocation{}
+	for _, cl := range chairLocations {
+		if prevChairLocation, ok := prevChairLocationByChairID[cl.ChairID]; ok {
+			chairTotalDistanceByChairID[cl.ChairID] += abs(cl.Latitude-prevChairLocation.Latitude) + abs(cl.Longitude-prevChairLocation.Longitude)
 		}
-		distanceByChairID[cl.ChairID] += abs(cl.Latitude-prevChairLocation.Latitude) + abs(cl.Longitude-prevChairLocation.Longitude)
+		prevChairLocationByChairID[cl.ChairID] = &cl
 	}
-	chairTotalDistances := make([]ChairTotalDistance, 0, len(distanceByChairID))
-	for chairID, distance := range distanceByChairID {
-		chairTotalDistances = append(chairTotalDistances, ChairTotalDistance{
-			ID:       ulid.Make().String(),
-			ChairID:  chairID,
-			Distance: distance,
-		})
+	chairTotalDistances := make([]ChairTotalDistance, 0, len(chairTotalDistanceByChairID))
+	for chairID, totalDistance := range chairTotalDistanceByChairID {
+		chairTotalDistances = append(chairTotalDistances, ChairTotalDistance{ChairID: chairID, TotalDistance: totalDistance})
 	}
-	_, err := db.NamedExecContext(
-		ctx,
-		"INSERT INTO chair_locations_minus_distance (id, chair_id, distance) VALUES (:id, :chair_id, :distance)",
-		chairTotalDistances,
-	)
+	_, err := db.ExecContext(ctx, "TRUNCATE TABLE chair_locations_total_distance")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
+	}
+	_, err = db.NamedExecContext(ctx, "INSERT INTO chair_locations_total_distance (chair_id, total_distance) VALUES (:chair_id, :total_distance)", chairTotalDistances)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	for _, ctd := range chairTotalDistances {
+		InsertChairTotalDistance(&ctd)
 	}
 
 	ChairMap = sync.Map{}
@@ -271,6 +357,63 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, chair := range chairs {
 		UpdateChair(&chair, &chair.UpdatedAt)
+	}
+
+	appGetNotificationChannel = sync.Map{}
+
+	matchingInit <- struct{}{}
+
+	OwnerMap = sync.Map{}
+	owners := []Owner{}
+	if err = db.Select(&owners, "SELECT * FROM owners"); err != nil {
+		panic(err)
+	}
+	for _, owner := range owners {
+		InsertOwner(&owner)
+	}
+
+	rideStatusMap = sync.Map{}
+	rideStatuses := []RideStatus{}
+	if err = db.Select(&rideStatuses, "SELECT * FROM ride_statuses ORDER BY created_at"); err != nil {
+		panic(err)
+	}
+	for _, rs := range rideStatuses {
+		rideStatusMap.Store(rs.ID, &rs)
+	}
+
+	UserMap = sync.Map{}
+	users := []User{}
+	if err = db.Select(&users, "SELECT * FROM users"); err != nil {
+		panic(err)
+	}
+	for _, u := range users {
+		InsertUser(&u)
+	}
+
+	ChairStatsMap = sync.Map{}
+	stats := []struct {
+		ChairID string            `db:"chair_id"`
+		S       sql.Null[float64] `db:"s"`
+		C       sql.Null[int]     `db:"c"`
+	}{}
+	if err = db.Select(&stats,
+		`SELECT chair_id, SUM(evaluation) as s, COUNT(1) as c FROM rides WHERE chair_id IS NOT NULL GROUP BY chair_id`,
+	); err != nil {
+		panic(err)
+	}
+	for _, stat := range stats {
+		c := 0
+		if stat.C.Valid {
+			c = stat.C.V
+		}
+		s := 0.0
+		if stat.S.Valid {
+			s = stat.S.V
+		}
+		InsertChairStats(stat.ChairID, ChairStatType{
+			Count: c,
+			Sum:   s,
+		})
 	}
 
 	writeJSON(w, http.StatusOK, postInitializeResponse{Language: "go"})

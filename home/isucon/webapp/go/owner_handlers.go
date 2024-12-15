@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -24,6 +25,21 @@ type ownerPostOwnersResponse struct {
 	ChairRegisterToken string `json:"chair_register_token"`
 }
 
+var OwnerMap = sync.Map{}
+
+func InsertOwner(owner *Owner) {
+	OwnerMap.Store(owner.ID, owner)
+	OwnerMap.Store(owner.ChairRegisterToken, owner)
+	OwnerMap.Store(owner.AccessToken, owner)
+}
+
+func GetOwner(key string) *Owner {
+	if v, ok := OwnerMap.Load(key); ok {
+		return v.(*Owner)
+	}
+	return nil
+}
+
 func ownerPostOwners(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req := &ownerPostOwnersRequest{}
@@ -40,15 +56,24 @@ func ownerPostOwners(w http.ResponseWriter, r *http.Request) {
 	accessToken := secureRandomStr(32)
 	chairRegisterToken := secureRandomStr(32)
 
+	now := time.Now()
 	_, err := db.ExecContext(
 		ctx,
-		"INSERT INTO owners (id, name, access_token, chair_register_token) VALUES (?, ?, ?, ?)",
-		ownerID, req.Name, accessToken, chairRegisterToken,
+		"INSERT INTO owners (id, name, access_token, chair_register_token, updated_at, created_at) VALUES (?, ?, ?, ?,?,?)",
+		ownerID, req.Name, accessToken, chairRegisterToken, now, now,
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	InsertOwner(&Owner{
+		ID:                 ownerID,
+		Name:               req.Name,
+		AccessToken:        accessToken,
+		ChairRegisterToken: chairRegisterToken,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
 
 	http.SetCookie(w, &http.Cookie{
 		Path:  "/",
@@ -102,41 +127,42 @@ func ownerGetSales(w http.ResponseWriter, r *http.Request) {
 
 	owner := r.Context().Value("owner").(*Owner)
 
-	tx, err := db.Beginx()
-	if err != nil {
+	chairs := []Chair{}
+	if err := db.SelectContext(ctx, &chairs, "SELECT * FROM chairs WHERE owner_id = ?", owner.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	defer tx.Rollback()
-
-	chairs := []Chair{}
-	if err := tx.SelectContext(ctx, &chairs, "SELECT * FROM chairs WHERE owner_id = ?", owner.ID); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
+	chairMap := make(map[string]Chair, len(chairs))
+	for _, chair := range chairs {
+		chairMap[chair.ID] = chair
 	}
 
 	res := ownerGetSalesResponse{
 		TotalSales: 0,
 	}
 
+	rides := []Ride{}
+	if err := db.SelectContext(ctx, &rides, "SELECT rides.* FROM rides INNER JOIN chairs ON rides.chair_id = chairs.id WHERE chairs.owner_id = ? AND evaluation IS NOT NULL AND rides.updated_at BETWEEN ? AND ? + INTERVAL 999 MICROSECOND", owner.ID, since, until); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
 	modelSalesByModel := map[string]int{}
-	for _, chair := range chairs {
-		rides := []Ride{}
-		if err := tx.SelectContext(ctx, &rides, "SELECT rides.* FROM rides JOIN ride_statuses ON rides.id = ride_statuses.ride_id WHERE chair_id = ? AND status = 'COMPLETED' AND updated_at BETWEEN ? AND ? + INTERVAL 999 MICROSECOND", chair.ID, since, until); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-
-		sales := sumSales(rides)
+	modelSalesByChair := map[string]int{}
+	for _, ride := range rides {
+		chair := chairMap[ride.ChairID.String]
+		sales := calculateSale(ride)
 		res.TotalSales += sales
-
+		modelSalesByModel[chair.Model] += sales
+		modelSalesByChair[chair.ID] += sales
+	}
+	for _, chair := range chairs {
+		modelSalesByModel[chair.Model] += 0
 		res.Chairs = append(res.Chairs, chairSales{
 			ID:    chair.ID,
 			Name:  chair.Name,
-			Sales: sales,
+			Sales: modelSalesByChair[chair.ID],
 		})
-
-		modelSalesByModel[chair.Model] += sales
 	}
 
 	models := []modelSales{}
@@ -217,25 +243,7 @@ WHERE owner_id = ?
 
 	totalDistanceByChairID := make(map[string]int)
 	for _, c := range chairs {
-		locations := ListChairLocations(c.ID)
-		var (
-			prev     *ChairLocation
-			distance int
-		)
-		for _, l := range locations {
-			if prev == nil {
-				prev = l
-				continue
-			}
-
-			lat := abs(l.Latitude - prev.Latitude)
-
-			lon := abs(l.Longitude - prev.Longitude)
-
-			distance += lat + lon
-			prev = l
-		}
-		totalDistanceByChairID[c.ID] = distance
+		totalDistanceByChairID[c.ID] = GetTotalDistance(c.ID)
 	}
 
 	res := ownerGetChairResponse{}
