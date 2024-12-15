@@ -2,6 +2,7 @@ package main
 
 import (
 	crand "crypto/rand"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -204,9 +205,9 @@ func setup() http.Handler {
 	{
 		ChairStatsMap = sync.Map{}
 		stats := []struct {
-			ChairID string  `db:"chair_id"`
-			S       float64 `db:"s"`
-			C       int     `db:"c"`
+			ChairID string            `db:"chair_id"`
+			S       sql.Null[float64] `db:"s"`
+			C       sql.Null[int]     `db:"c"`
 		}{}
 		if err := db.Select(&stats,
 			`SELECT chair_id, SUM(evaluation) as s, COUNT(1) as c FROM rides WHERE chair_id IS NOT NULL GROUP BY chair_id`,
@@ -214,9 +215,17 @@ func setup() http.Handler {
 			panic(err)
 		}
 		for _, stat := range stats {
+			c := 0
+			if stat.C.Valid {
+				c = stat.C.V
+			}
+			s := 0.0
+			if stat.S.Valid {
+				s = stat.S.V
+			}
 			InsertChairStats(stat.ChairID, ChairStatType{
-				Count: stat.C,
-				Sum:   stat.S,
+				Count: c,
+				Sum:   s,
 			})
 		}
 	}
@@ -383,19 +392,27 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 
 	ChairStatsMap = sync.Map{}
 	stats := []struct {
-		ChairID string  `db:"chair_id"`
-		S       float64 `db:"s"`
-		C       int     `db:"c"`
+		ChairID string            `db:"chair_id"`
+		S       sql.Null[float64] `db:"s"`
+		C       sql.Null[int]     `db:"c"`
 	}{}
-	if err := db.Select(&stats,
+	if err = db.Select(&stats,
 		`SELECT chair_id, SUM(evaluation) as s, COUNT(1) as c FROM rides WHERE chair_id IS NOT NULL GROUP BY chair_id`,
 	); err != nil {
 		panic(err)
 	}
 	for _, stat := range stats {
+		c := 0
+		if stat.C.Valid {
+			c = stat.C.V
+		}
+		s := 0.0
+		if stat.S.Valid {
+			s = stat.S.V
+		}
 		InsertChairStats(stat.ChairID, ChairStatType{
-			Count: stat.C,
-			Sum:   stat.S,
+			Count: c,
+			Sum:   s,
 		})
 	}
 
