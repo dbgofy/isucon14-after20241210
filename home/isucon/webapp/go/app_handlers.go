@@ -592,7 +592,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 	ride.Evaluation = &req.Evaluation
 	ride.UpdatedAt = now
 	stat := getChairStats(ride.ChairID.String)
-	InsertChairStats(ride.ID, ChairStatType{
+	InsertChairStats(ride.ChairID.String, ChairStatType{
 		Count: stat.Count + 1,
 		Sum:   stat.Sum + float64(req.Evaluation),
 	})
@@ -877,8 +877,8 @@ func (s ChairStatType) ToAppGetNotificationResponseChairStats() appGetNotificati
 	}
 }
 
-func InsertChairStats(rideID string, stat ChairStatType) {
-	ChairStatsMap.Store(rideID, stat)
+func InsertChairStats(chairID string, stat ChairStatType) {
+	ChairStatsMap.Store(chairID, stat)
 }
 
 func getChairStats(chairID string) ChairStatType {
