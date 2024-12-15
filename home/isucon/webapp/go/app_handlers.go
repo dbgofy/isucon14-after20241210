@@ -624,7 +624,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = sendAppGetNotificationChannel(ctx, tx, status, ride)
+	err = sendAppGetNotificationChannel(ctx, tx, status, ride, nil)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		slog.Error("failed to send notification", "error", err)
@@ -674,7 +674,7 @@ type appGetNotificationResponseChairStats struct {
 // appGetNotificationChannel map[userID]chan appGetNotificationResponseData
 var appGetNotificationChannel = sync.Map{}
 
-func sendAppGetNotificationChannel(ctx context.Context, tx *sqlx.Tx, status string, ride *Ride) error {
+func sendAppGetNotificationChannel(ctx context.Context, tx *sqlx.Tx, status string, ride *Ride, calcedFare *int) error {
 	c, ok := appGetNotificationChannel.Load(ride.UserID)
 	if !ok {
 		return nil
@@ -685,17 +685,21 @@ func sendAppGetNotificationChannel(ctx context.Context, tx *sqlx.Tx, status stri
 	}
 	var err error
 	var fare int
-	if tx != nil {
-		fare, err = calculateDiscountedFare(ctx, tx, ride.UserID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
-		if err != nil {
-			slog.Error("failed to calculate discounted fare", "error", err, "user_id", ride.UserID, "ride", ride)
-			return fmt.Errorf("failed to calculate discounted fare: %w", err)
-		}
+	if calcedFare != nil {
+		fare = *calcedFare
 	} else {
-		fare, err = calculateDiscountedFare2(ctx, db, ride.UserID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
-		if err != nil {
-			slog.Error("failed to calculate discounted fare", "error", err, "user_id", ride.UserID, "ride", ride)
-			return fmt.Errorf("failed to calculate discounted fare2: %w", err)
+		if tx != nil {
+			fare, err = calculateDiscountedFare(ctx, tx, ride.UserID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
+			if err != nil {
+				slog.Error("failed to calculate discounted fare", "error", err, "user_id", ride.UserID, "ride", ride)
+				return fmt.Errorf("failed to calculate discounted fare: %w", err)
+			}
+		} else {
+			fare, err = calculateDiscountedFare2(ctx, db, ride.UserID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
+			if err != nil {
+				slog.Error("failed to calculate discounted fare", "error", err, "user_id", ride.UserID, "ride", ride)
+				return fmt.Errorf("failed to calculate discounted fare2: %w", err)
+			}
 		}
 	}
 	response := appGetNotificationResponseData{
@@ -773,7 +777,7 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 		}
 		status = *statusV
 
-		err := sendAppGetNotificationChannel(ctx, nil, status, ride)
+		err := sendAppGetNotificationChannel(ctx, nil, status, ride, nil)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			slog.Error("failed to send notification", "error", err)

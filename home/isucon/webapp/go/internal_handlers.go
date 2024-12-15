@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/jmoiron/sqlx"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -194,8 +195,26 @@ func matchingComp(ctx context.Context, rides []Ride) error {
 		return fmt.Errorf("failed to update ride: %w", err)
 	}
 
+	coupons := []Coupon{}
+	query, params, err := sqlx.In("SELECT * FROM coupons WHERE used_by IN (?)", rideIDs)
+	if err != nil {
+		return fmt.Errorf("failed to create query: %w", err)
+	}
+	if err := tx.SelectContext(ctx, &coupons, query, params...); err != nil {
+		return fmt.Errorf("failed to select coupons: %w", err)
+	}
+	couponByRideID := map[string]Coupon{}
+	for _, coupon := range coupons {
+		couponByRideID[*coupon.UsedBy] = coupon
+	}
+
 	for _, ride := range rides {
-		err := sendAppGetNotificationChannel(ctx, tx, "MATCHING", &ride)
+		discount := 0
+		if coupon, ok := couponByRideID[ride.ID]; ok {
+			discount = coupon.Discount
+		}
+		fare := calcFare(ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude, discount)
+		err = sendAppGetNotificationChannel(ctx, tx, "MATCHING", &ride, &fare)
 		if err != nil {
 			slog.Error("failed to send notification", "error", err)
 			return fmt.Errorf("failed to send notification: %w", err)
