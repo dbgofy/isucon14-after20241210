@@ -183,7 +183,7 @@ func matchingComp(ctx context.Context, rides []Ride) error {
 	for _, v := range rideIDs {
 		b = append(b, v)
 	}
-	_, err := db.ExecContext(ctx, fmt.Sprintf("UPDATE rides SET chair_id = ELT(FIELD(id%s)%s) WHERE id IN (%s)", strings.Repeat(",?", len(rideIDs)), strings.Repeat(",?", len(chairIDs)), "?"+strings.Repeat(",?", len(rideIDs)-1)), b...)
+	_, err := db.ExecContext(ctx, fmt.Sprintf("UPDATE rides SET chair_id = ELT(FIELD(id%s)%s) WHERE id IN (?%s)", strings.Repeat(",?", len(rideIDs)), strings.Repeat(",?", len(chairIDs)), strings.Repeat(",?", len(rideIDs)-1)), b...)
 	if err != nil {
 		slog.Error("failed to update ride", "error", err)
 		return fmt.Errorf("failed to update ride: %w", err)
