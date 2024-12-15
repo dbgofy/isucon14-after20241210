@@ -51,6 +51,9 @@ func matching() {
 		}
 	}
 
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
 	waitingChairIDs := []string{}
 	waitingRides := []Ride{}
 	slog.Info("matching start")
@@ -78,7 +81,7 @@ func matching() {
 			waitingChairIDs = append(waitingChairIDs, chairID)
 		case ride := <-matchingRideChannel:
 			waitingRides = append(waitingRides, ride)
-		default:
+		case <-ticker.C:
 			type expectedScoreType struct {
 				ride          Ride
 				chairLocation *ChairLocation
