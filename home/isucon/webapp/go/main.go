@@ -71,6 +71,20 @@ func GetTotalDistance(chairID string) int {
 	return 0
 }
 
+var UserMap = sync.Map{}
+
+func InsertUser(user *User) {
+	UserMap.Store(user.ID, user)
+	UserMap.Store(user.AccessToken, user)
+}
+
+func GetUser(key string) *User {
+	if v, ok := UserMap.Load(key); ok {
+		return v.(*User)
+	}
+	return nil
+}
+
 func main() {
 	mux := setup()
 	//slog.Info("Listening on :8080")
@@ -172,6 +186,17 @@ func setup() http.Handler {
 		}
 		for _, rs := range rideStatuses {
 			rideStatusMap.Store(rs.ID, &rs)
+		}
+	}
+
+	{
+		UserMap = sync.Map{}
+		users := []User{}
+		if err := db.Select(&users, "SELECT * FROM users"); err != nil {
+			panic(err)
+		}
+		for _, u := range users {
+			InsertUser(&u)
 		}
 	}
 
@@ -324,6 +349,15 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, rs := range rideStatuses {
 		rideStatusMap.Store(rs.ID, &rs)
+	}
+
+	UserMap = sync.Map{}
+	users := []User{}
+	if err = db.Select(&users, "SELECT * FROM users"); err != nil {
+		panic(err)
+	}
+	for _, u := range users {
+		InsertUser(&u)
 	}
 
 	writeJSON(w, http.StatusOK, postInitializeResponse{Language: "go"})
