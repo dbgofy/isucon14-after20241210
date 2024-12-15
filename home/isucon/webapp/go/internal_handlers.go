@@ -99,7 +99,7 @@ func matching() {
 						ride:          r,
 						chairLocation: chairLocation,
 						expectedScore: calcExpectedScore(r, chairLocation, chairModelByChairName[chair.Model].Speed) +
-							float64((time.Now().Sub(r.CreatedAt)).Nanoseconds())*0.000000001, // うまく待ってる時間を考慮したい
+							float64((time.Now().Sub(r.CreatedAt)).Nanoseconds())*0.1, // うまく待ってる時間を考慮したい
 					})
 				}
 			}
@@ -109,14 +109,14 @@ func matching() {
 			sort.Slice(expectedScores, func(i, j int) bool {
 				return expectedScores[i].expectedScore > expectedScores[j].expectedScore
 			})
-			//highExpectedScore := expectedScores[0].expectedScore
+			highExpectedScore := expectedScores[0].expectedScore
 			usedRideIDs := make(map[string]struct{})
 			usedChairIDs := make(map[string]struct{})
 			matchingRides := make([]Ride, 0, len(expectedScores))
 			for _, es := range expectedScores {
-				//if es.expectedScore < highExpectedScore*0.1 { // 10%以下のものは無視
-				//	break
-				//}
+				if es.expectedScore < highExpectedScore*0.1 { // 10%以下のものは無視
+					break
+				}
 				if _, ok := usedRideIDs[es.ride.ID]; ok {
 					continue
 				}
